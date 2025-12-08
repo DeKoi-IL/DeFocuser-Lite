@@ -24,6 +24,8 @@ https://he.aliexpress.com/item/1005004214871047.html
 Technically, this should work with any 2 phase 4 wire stepper motor (as long as it doesn't draw too much current).
 You'd just need to redesign the 3d model to fit your motor.
 
+I've actually tested on a Nema17 39mm motor, and it seems to work fine, albeit low torque obviously.
+
 The rest of the components are in the kicad folder BOM file.
 *note: In the kicad project some components have LCSC part numbers, and some dont.
 This is due to me using components i already had, and the rest i ordered from LCSC.
