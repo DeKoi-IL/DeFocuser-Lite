@@ -29,6 +29,7 @@ I've actually tested on a Nema17 39mm motor, and it seems to work fine, albeit l
 The rest of the components are in the kicad folder BOM file.
 *note: In the kicad project some components have LCSC part numbers, and some dont.
 This is due to me using components i already had, and the rest i ordered from LCSC.
+For the components without LCSC part number, you can just search by name in ali express for example.
 
 ## 3d model
 The connection holes are meant to be fit with m3 heatset inserts (these: https://he.aliexpress.com/item/1005007481465353.html)
@@ -37,5 +38,7 @@ The PCB and backplate are held with m2 heatset inserts with m2 6mm screws.
 # Software
 In the software folder you can find the ascom driver installer + standalone app.
 In the standalone app you have extra functionality like settings the current\max position, Auto calibration etc...
-I'd love to be able to create the ascrom driver app and standalone as one app (like the zwo mount for example), 
-but i currently dont have the knowledge or time to implement that (maybe some day).
+I'd love to be able to create the ascom driver app and standalone as one app (like the zwo mount driver for example), 
+but i currently dont have the knowledge or time to implement that (maybe someday).
+
+The code isn't the prettiest, im sure it have plenty of room for improvement, feel free to open up issues with bugs, suggestions etc...
