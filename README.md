@@ -1,10 +1,10 @@
 # DeFocuser-Lite
-An open source DIY focus motor with automatic range calibration.
+An open source DIY focus motor with automatic range calibration.\n\n
 
-This focuser uses the same motor used by ZWO in the older EAF models (Non pro models)
-The 3d models are also modelled based on ZWO's front plate so whatever focuser the eaf is compatible, this is also compatible.
-Powered by USB C 5V.
-Includes a single button for manual focusing (each press changes direction).
+This focuser uses the same motor used by ZWO in the older EAF models (Non pro models)\n
+The 3d models are also modelled based on ZWO's front plate so whatever focuser the eaf is compatible, this is also compatible.\n
+Powered by USB C 5V.\n
+Includes a single button for manual focusing (each press changes direction).\n\n
 
 <img width="758" height="658" alt="image" src="https://github.com/user-attachments/assets/4cdb19ac-4699-4f49-9c2c-0dc32b65c3b4" />
 <img width="617" height="702" alt="image" src="https://github.com/user-attachments/assets/d24b0105-2b52-49c5-b18a-e582102fa68a" />
