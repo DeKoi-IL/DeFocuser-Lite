@@ -7,7 +7,7 @@ Powered by USB C 5V.
 Includes a single button for manual focusing (each press changes direction).
 
 <img width="758" height="658" alt="image" src="https://github.com/user-attachments/assets/4cdb19ac-4699-4f49-9c2c-0dc32b65c3b4" />
-![Assembly](https://github.com/user-attachments/assets/1552275c-7025-41e5-a4da-ad71db4d2a1a)
+<img width="617" height="702" alt="image" src="https://github.com/user-attachments/assets/d24b0105-2b52-49c5-b18a-e582102fa68a" />
 
 ## Disclaimer
 This is NOT a begginer friendly project, since its all SMD components.
