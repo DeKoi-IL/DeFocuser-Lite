@@ -6,9 +6,8 @@ The 3d models are also modelled based on ZWO's front plate so whatever focuser t
 Powered by USB C 5V.
 Includes a single button for manual focusing (each press changes direction).
 
-<img width="1038" height="899" alt="image" src="https://github.com/user-attachments/assets/d66d0097-c430-4d35-a343-f20027f4f7bd" />
-<img width="1019" height="906" alt="image" src="https://github.com/user-attachments/assets/b2941dd3-2906-4415-beae-5d171392aa0b" />
-<img width="741" height="969" alt="image" src="https://github.com/user-attachments/assets/2ef9adb3-dbb7-4651-b459-169cf2daf751" />
+<img width="758" height="658" alt="image" src="https://github.com/user-attachments/assets/4cdb19ac-4699-4f49-9c2c-0dc32b65c3b4" />
+<img width="617" height="702" alt="image" src="https://github.com/user-attachments/assets/d24b0105-2b52-49c5-b18a-e582102fa68a" />
 
 ## Disclaimer
 This is NOT a begginer friendly project, since its all SMD components.
@@ -24,6 +23,8 @@ https://he.aliexpress.com/item/1005004214871047.html
 
 Technically, this should work with any 2 phase 4 wire stepper motor (as long as it doesn't draw too much current).
 You'd just need to redesign the 3d model to fit your motor.
+
+I've actually tested on a Nema17 39mm motor, and it seems to work fine, albeit low torque obviously.
 
 The rest of the components are in the kicad folder BOM file.
 *note: In the kicad project some components have LCSC part numbers, and some dont.
