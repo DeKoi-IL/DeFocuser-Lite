@@ -36,6 +36,9 @@ The connection holes are meant to be fit with m3 heatset inserts (these: https:/
 The PCB and backplate are held with m2 heatset inserts with m2 6mm screws.
 
 # Software
+The software was a fork and (heavy) modification of DarkSkyGeeks OAG focuser project.
+A lot of the code has changed, the serial communication is mostly the same.
+
 In the software folder you can find the ascom driver installer + standalone app.
 In the standalone app you have extra functionality like settings the current\max position, Auto calibration etc...
 I'd love to be able to create the ascom driver app and standalone as one app (like the zwo mount driver for example), 
