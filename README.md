@@ -6,9 +6,8 @@ The 3d models are also modelled based on ZWO's front plate so whatever focuser t
 Powered by USB C 5V.
 Includes a single button for manual focusing (each press changes direction).
 
-<img width="1038" height="899" alt="image" src="https://github.com/user-attachments/assets/d66d0097-c430-4d35-a343-f20027f4f7bd" />
-<img width="1019" height="906" alt="image" src="https://github.com/user-attachments/assets/b2941dd3-2906-4415-beae-5d171392aa0b" />
-<img width="741" height="969" alt="image" src="https://github.com/user-attachments/assets/2ef9adb3-dbb7-4651-b459-169cf2daf751" />
+<img width="758" height="658" alt="image" src="https://github.com/user-attachments/assets/4cdb19ac-4699-4f49-9c2c-0dc32b65c3b4" />
+![Assembly](https://github.com/user-attachments/assets/1552275c-7025-41e5-a4da-ad71db4d2a1a)
 
 ## Disclaimer
 This is NOT a begginer friendly project, since its all SMD components.
