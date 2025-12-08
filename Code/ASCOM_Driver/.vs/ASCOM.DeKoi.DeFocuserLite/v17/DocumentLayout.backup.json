@@ -1,0 +1,115 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{64308775-BD4A-469C-BCAB-3ED830B811AF}|ASCOM.DeKoi.DeFocuserLite.csproj|d:\\astrophotography\\diy projects\\defocuser lite\\ascom_driver\\focuserdriver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{64308775-BD4A-469C-BCAB-3ED830B811AF}|ASCOM.DeKoi.DeFocuserLite.csproj|solutionrelative:focuserdriver.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{64308775-BD4A-469C-BCAB-3ED830B811AF}|ASCOM.DeKoi.DeFocuserLite.csproj|D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\focusersetupdialogform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{64308775-BD4A-469C-BCAB-3ED830B811AF}|ASCOM.DeKoi.DeFocuserLite.csproj|solutionrelative:focusersetupdialogform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{64308775-BD4A-469C-BCAB-3ED830B811AF}|ASCOM.DeKoi.DeFocuserLite.csproj|D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\focusersetupdialogform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{64308775-BD4A-469C-BCAB-3ED830B811AF}|ASCOM.DeKoi.DeFocuserLite.csproj|solutionrelative:focusersetupdialogform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{64308775-BD4A-469C-BCAB-3ED830B811AF}|ASCOM.DeKoi.DeFocuserLite.csproj|D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\properties\\settings.designer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{64308775-BD4A-469C-BCAB-3ED830B811AF}|ASCOM.DeKoi.DeFocuserLite.csproj|solutionrelative:properties\\settings.designer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{64308775-BD4A-469C-BCAB-3ED830B811AF}|ASCOM.DeKoi.DeFocuserLite.csproj|D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\properties\\assemblyinfo.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{64308775-BD4A-469C-BCAB-3ED830B811AF}|ASCOM.DeKoi.DeFocuserLite.csproj|solutionrelative:properties\\assemblyinfo.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{64308775-BD4A-469C-BCAB-3ED830B811AF}|ASCOM.DeKoi.DeFocuserLite.csproj|D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\properties\\resources.resx||{81828910-B8B3-4D2B-99A3-067027C180C1}",
+      "RelativeMoniker": "D:0:0:{64308775-BD4A-469C-BCAB-3ED830B811AF}|ASCOM.DeKoi.DeFocuserLite.csproj|solutionrelative:properties\\resources.resx||{81828910-B8B3-4D2B-99A3-067027C180C1}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "FocuserDriver.cs",
+              "DocumentMoniker": "D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\FocuserDriver.cs",
+              "RelativeDocumentMoniker": "FocuserDriver.cs",
+              "ToolTip": "D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\FocuserDriver.cs",
+              "RelativeToolTip": "FocuserDriver.cs",
+              "ViewState": "AgIAAGEAAAAAAAAAAADwv5YAAAAIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-12T21:23:19.447Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "AssemblyInfo.cs",
+              "DocumentMoniker": "D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\Properties\\AssemblyInfo.cs",
+              "RelativeDocumentMoniker": "Properties\\AssemblyInfo.cs",
+              "ToolTip": "D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\Properties\\AssemblyInfo.cs",
+              "RelativeToolTip": "Properties\\AssemblyInfo.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABUAAAAcAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-12T12:15:21.707Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "Resources.resx",
+              "DocumentMoniker": "D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\Properties\\Resources.resx",
+              "RelativeDocumentMoniker": "Properties\\Resources.resx",
+              "ToolTip": "D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\Properties\\Resources.resx",
+              "RelativeToolTip": "Properties\\Resources.resx",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001005|",
+              "WhenOpened": "2025-08-12T19:20:40.333Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "Settings.Designer.cs",
+              "DocumentMoniker": "D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\Properties\\Settings.Designer.cs",
+              "RelativeDocumentMoniker": "Properties\\Settings.Designer.cs",
+              "ToolTip": "D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\Properties\\Settings.Designer.cs",
+              "RelativeToolTip": "Properties\\Settings.Designer.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-12T19:20:35.728Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "FocuserSetupDialogForm.cs",
+              "DocumentMoniker": "D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\FocuserSetupDialogForm.cs",
+              "RelativeDocumentMoniker": "FocuserSetupDialogForm.cs",
+              "ToolTip": "D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\FocuserSetupDialogForm.cs",
+              "RelativeToolTip": "FocuserSetupDialogForm.cs",
+              "ViewState": "AgIAAEEAAAAAAAAAAAAQwFkAAAAJAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-12T12:15:19.975Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "FocuserSetupDialogForm.cs [Design]",
+              "DocumentMoniker": "D:\\Astrophotography\\DIY Projects\\DeFocuser Lite\\ASCOM_Driver\\FocuserSetupDialogForm.cs",
+              "RelativeDocumentMoniker": "FocuserSetupDialogForm.cs",
+              "ToolTip": "D:\\Astrophotography\\DIY Projects\\ascom-oag-focuser-2\\ASCOM_Driver\\FocuserSetupDialogForm.cs [Design]",
+              "RelativeToolTip": "..\\..\\ascom-oag-focuser-2\\ASCOM_Driver\\FocuserSetupDialogForm.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-12T19:31:56.206Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
