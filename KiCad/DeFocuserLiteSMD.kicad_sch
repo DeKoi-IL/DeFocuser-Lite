@@ -4621,6 +4621,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC Part" "C720477"
+			(at 125.73 81.28 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "c0dd5084-d5ac-4f84-a686-590d7b046c24")
 		)
@@ -5129,6 +5138,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC Part" "C5348165"
+			(at 160.02 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "f1f369ce-0068-40f1-951f-c937af13f965")
 		)
@@ -5323,6 +5341,15 @@
 			)
 		)
 		(property "Description" "High Efficiency 1.2MHz 2A Step Up Converter, 2-24V Vin, 28V Vout, 4A current limit, 1.2MHz, SOT23-6"
+			(at 173.99 59.69 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC Part" "C84817"
 			(at 173.99 59.69 0)
 			(effects
 				(font
@@ -5612,6 +5639,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC Part" "C2907446"
+			(at 195.58 68.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "af837c72-0df2-426c-9903-d8f68906daf9")
 		)
@@ -5746,6 +5782,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC Part" "C87002"
+			(at 173.99 45.72 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "2a43b78c-f124-43d6-926b-f68051785111")
 		)
@@ -5813,6 +5858,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC Part" "C2907440"
+			(at 161.29 133.35 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "e2931e5d-ff1f-4a2c-b7e1-f64cc158d877")
 		)
@@ -5872,6 +5926,15 @@
 			)
 		)
 		(property "Description" "Resistor"
+			(at 118.11 88.9 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC Part" "C17902"
 			(at 118.11 88.9 0)
 			(effects
 				(font
@@ -6368,6 +6431,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC Part" "C5348165"
+			(at 207.01 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "d44d219a-317b-44f0-9337-88e319dad9b4")
 		)
@@ -6584,6 +6656,15 @@
 			)
 		)
 		(property "Description" "Resistor"
+			(at 195.58 52.07 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC Part" "C2933708"
 			(at 195.58 52.07 0)
 			(effects
 				(font
@@ -7530,6 +7611,15 @@
 			)
 		)
 		(property "Description" "Schottky diode"
+			(at 189.23 45.72 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC Part" "C908680"
 			(at 189.23 45.72 0)
 			(effects
 				(font
