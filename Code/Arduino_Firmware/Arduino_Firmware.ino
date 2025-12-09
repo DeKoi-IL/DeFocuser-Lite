@@ -29,8 +29,8 @@
 #define STALL_TIME_THRS 300
 #define STALL_GRACE_PERIOD 1000
 
-#define MAX_SPEED_DELAY 5000
-#define MIN_SPEED_DELAY 7000
+#define MAX_SPEED_DELAY 10000
+#define MIN_SPEED_DELAY 14000
 
 #define ACCELERATION_TIME 500.0
 
@@ -127,9 +127,10 @@ uint32_t outmost_position;
 long acceleration_start_time = 0;
 
 uint32_t ihold   = 2;   // low hold current
-uint32_t irun    = 31;  // full run current
+uint32_t irun    = 8;  // low run current
 uint32_t iholddelay   = 4;   // small delay
 
+const uint8_t stall_guard_threshold = 211;
 uint8_t stall_counter = 0;
 int start_stall_time = 0;
 int stall_delay = -1;
@@ -152,7 +153,9 @@ void setup()
 
   Serial.begin(9600);
 
+#if defined(DEBUG) && DEBUG != OFF
   Serial.println("Begin setup...");
+#endif
 
   pinMode(EN_PIN, OUTPUT);
   pinMode(DIR_PIN, OUTPUT);
@@ -167,21 +170,15 @@ void setup()
   direction = forward;
   position = 0;
 
-  delay(2000);
-
-  Serial.println("Driver setup...");
-
-  delay(2000);
-
   // Drive setup
   SoftSerial.begin(DRIVER_SERIAL_BAUD);
   driver.begin();
   driver.toff(4); // Enables driver
   driver.blank_time(24);
-  driver.rms_current(500); // mA
-  driver.microsteps(8); // Set microsteps
+  driver.rms_current(400); // mA
+  driver.microsteps(4); // Set microsteps
 
-  driver.en_spreadCycle(false); // Enable spreadCycle
+  driver.en_spreadCycle(false); // Disable spreadCycle
   driver.pwm_autoscale(true); // Needed for StealthChop, harmless here
   driver.intpol(1);
 
@@ -195,7 +192,7 @@ void setup()
   driver.semax(2);
   driver.sedn(0b01);
 
-  driver.SGTHRS(211);
+  driver.SGTHRS(stall_guard_threshold);
 
   attachInterrupt(digitalPinToInterrupt(DIAG_PIN), stallInterrupt, RISING);
 
@@ -206,8 +203,10 @@ void setup()
     Serial.flush();
   }
 
+#if defined(DEBUG) && DEBUG != OFF
   Serial.print("Driver version: ");
   Serial.println(driver.version());
+#endif
 
   unsigned int magic_number;
   EEPROM.begin(13);
