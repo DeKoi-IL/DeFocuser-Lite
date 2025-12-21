@@ -150,7 +150,9 @@ void haltFocuser();
 
 void setup() 
 {
+#if DEBUG
   delay(2000);
+#endif
 
   Serial.begin(9600);
 
