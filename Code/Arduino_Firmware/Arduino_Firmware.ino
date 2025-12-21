@@ -2,7 +2,7 @@
 #include <SoftwareSerial.h>
 #include <EEPROM.h>
 
-#define DEBUG OFF
+#define DEBUG 0
 
 #define MCU ESP32C3
 
@@ -29,10 +29,10 @@
 #define STALL_TIME_THRS 300
 #define STALL_GRACE_PERIOD 1000
 
-#define MAX_SPEED_DELAY 10000
-#define MIN_SPEED_DELAY 14000
+#define MAX_SPEED_DELAY 11000
+#define MIN_SPEED_DELAY 15000
 
-#define ACCELERATION_TIME 500.0
+#define ACCELERATION_TIME 600.0
 
 #define DRIVER_ADDRESS 0b00  // TMC2209 address pin configuration
 #define R_SENSE 0.22f        // Sense resistor value
@@ -127,10 +127,11 @@ uint32_t outmost_position;
 long acceleration_start_time = 0;
 
 uint32_t ihold   = 2;   // low hold current
-uint32_t irun    = 8;  // low run current
+uint32_t irun    = 5;  // low run current
 uint32_t iholddelay   = 4;   // small delay
 
 const uint8_t stall_guard_threshold = 211;
+const uint8_t stall_guard_full_stop_threshold = 50;
 uint8_t stall_counter = 0;
 int start_stall_time = 0;
 int stall_delay = -1;
@@ -153,7 +154,7 @@ void setup()
 
   Serial.begin(9600);
 
-#if defined(DEBUG) && DEBUG != OFF
+#if DEBUG
   Serial.println("Begin setup...");
 #endif
 
@@ -175,7 +176,7 @@ void setup()
   driver.begin();
   driver.toff(4); // Enables driver
   driver.blank_time(24);
-  driver.rms_current(400); // mA
+  driver.rms_current(350); // Peak = RMS * 1.414, for USB max is 500ma divided by 1.414.
   driver.microsteps(4); // Set microsteps
 
   driver.en_spreadCycle(false); // Disable spreadCycle
@@ -203,7 +204,7 @@ void setup()
     Serial.flush();
   }
 
-#if defined(DEBUG) && DEBUG != OFF
+#if DEBUG
   Serial.print("Driver version: ");
   Serial.println(driver.version());
 #endif
@@ -433,9 +434,8 @@ void stallInterrupt()
 {
   int now = millis();
 
-#if defined(DEBUG) && DEBUG != OFF
-  Serial.print("Stall detected: ");
-  Serial.println(now);
+#if DEBUG
+    Serial.println("Stall detected");
 #endif
 
   if (now - stall_grace < STALL_GRACE_PERIOD)
@@ -477,6 +477,12 @@ void stalled()
 {
   if (!is_calibrating)
   {
+#if DEBUG
+    Serial.print("Full stall!");
+#endif
+
+    stop(); // Safety, to not overload the motor to protect USB port
+
     return;
   }
 
@@ -484,7 +490,7 @@ void stalled()
   {
     stall_delay = millis();
 
-#if defined(DEBUG) && DEBUG != OFF
+#if DEBUG
     Serial.println("Stalled!");
 #endif
 
