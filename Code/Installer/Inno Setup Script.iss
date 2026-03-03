@@ -25,7 +25,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 ; ASCOM Driver DLL (thin IPC proxy)
 Source: "ASCOM_Driver\bin\Release\ASCOM.DeKoi.DeFocuserLite.dll"; DestDir: "{app}"
 ; Mediator App EXE (owns serial connection, serves ASCOM clients)
-Source: "Focuser_App_v2\bin\x64\Release\ASCOM.DeKoi.DeFocuserMediator.exe"; DestDir: "{app}"
+Source: "Focuser_App\bin\x64\Release\ASCOM.DeKoi.DeFocuserMediator.exe"; DestDir: "{app}"
 
 [Icons]
 Name: "{group}\DeFocuser Lite Controller"; Filename: "{app}\ASCOM.DeKoi.DeFocuserMediator.exe"

@@ -97,6 +97,9 @@ namespace ASCOM.DeKoi
         private const string COMMAND_FOCUSER_HALT = "COMMAND:FOCUSER:HALT";
         private const string RESULT_FOCUSER_HALT = "RESULT:FOCUSER:HALT:";
 
+        private const string COMMAND_FOCUSER_SETLIMIT = "COMMAND:FOCUSER:SETLIMIT";
+        private const string RESULT_FOCUSER_SETLIMIT = "RESULT:FOCUSER:SETLIMIT:";
+
         /// <summary>
         /// Variable to hold the trace logger object
         /// </summary>
@@ -140,7 +143,8 @@ namespace ASCOM.DeKoi
 
         /// <summary>
         /// Displays the Setup Dialog form.
-        /// Since the mediator app handles configuration, this launches the mediator.
+        /// Since the mediator app handles configuration, this launches the mediator
+        /// without blocking, so the caller (e.g. N.I.N.A) remains responsive.
         /// </summary>
         public void SetupDialog()
         {
@@ -150,10 +154,11 @@ namespace ASCOM.DeKoi
                 return;
             }
 
-            // Launch the mediator app for configuration
+            // Launch the mediator app for configuration (non-blocking).
+            // We do NOT wait for the pipe here — that only happens in Connected=true.
             try
             {
-                EnsureMediatorAppRunning();
+                LaunchMediatorApp();
             }
             catch (Exception ex)
             {
@@ -167,10 +172,11 @@ namespace ASCOM.DeKoi
         {
             get
             {
-                LogMessage("SupportedActions Get", "Returning [\"SetZeroPosition\"]");
+                LogMessage("SupportedActions Get", "Returning supported actions");
                 return new ArrayList()
                 {
-                    "SetZeroPosition"
+                    "SetZeroPosition",
+                    "SetLimit"
                 };
             }
         }
@@ -244,6 +250,16 @@ namespace ASCOM.DeKoi
                     }
                     return response;
 
+                case "SETLIMIT":
+                    pipeResponse = SendPipeCommand(COMMAND_FOCUSER_SETLIMIT);
+                    response = ParseResponse(pipeResponse, RESULT_FOCUSER_SETLIMIT);
+                    if (response != OK)
+                    {
+                        LogMessage("SetLimit", "Device responded with an error");
+                        throw new DriverException("Device responded with an error");
+                    }
+                    return string.Empty;
+
                 default:
                     LogMessage("", "Action {0} not implemented", actionName);
                     throw new ActionNotImplementedException("Action " + actionName + " is not implemented by this driver");
@@ -270,6 +286,13 @@ namespace ASCOM.DeKoi
 
         public void Dispose()
         {
+            if (connectedState)
+            {
+                try { SendPipeCommand("IPC:DISCONNECT"); } catch { }
+                connectedState = false;
+            }
+            CleanupPipe();
+
             tl.Enabled = false;
             tl.Dispose();
             tl = null;
@@ -645,20 +668,19 @@ namespace ASCOM.DeKoi
         }
 
         /// <summary>
-        /// Ensures the mediator app is running. Launches it if not.
-        /// The mediator EXE is expected in the same directory as this driver DLL.
+        /// Launches the mediator app if not already running.
+        /// Does NOT wait for the pipe to become available (non-blocking).
+        /// Used by SetupDialog to avoid freezing the caller.
         /// </summary>
-        private void EnsureMediatorAppRunning()
+        private void LaunchMediatorApp()
         {
-            // Check if the mediator process is already running
             var processes = Process.GetProcessesByName(MEDIATOR_PROCESS_NAME);
             if (processes.Length > 0)
             {
-                LogMessage("EnsureMediatorAppRunning", "Mediator app is already running");
+                LogMessage("LaunchMediatorApp", "Mediator app is already running");
                 return;
             }
 
-            // Launch the mediator app from the same directory as the driver DLL
             string driverDir = Path.GetDirectoryName(
                 System.Reflection.Assembly.GetExecutingAssembly().Location);
             string appPath = Path.Combine(driverDir, MEDIATOR_PROCESS_NAME + ".exe");
@@ -668,8 +690,18 @@ namespace ASCOM.DeKoi
                 throw new DriverException("DeFocuser Lite Mediator application not found at: " + appPath);
             }
 
-            LogMessage("EnsureMediatorAppRunning", "Launching mediator app from: " + appPath);
+            LogMessage("LaunchMediatorApp", "Launching mediator app from: " + appPath);
             Process.Start(appPath);
+        }
+
+        /// <summary>
+        /// Ensures the mediator app is running and its pipe server is available.
+        /// Launches the app if needed, then blocks until the pipe is reachable.
+        /// Used by Connected=true where we need a working pipe connection.
+        /// </summary>
+        private void EnsureMediatorAppRunning()
+        {
+            LaunchMediatorApp();
 
             // Wait for the pipe to become available
             int retries = 30; // 30 * 500ms = 15 seconds
