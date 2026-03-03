@@ -2,7 +2,7 @@
 An open source DIY focus motor with automatic range calibration.
 
 This focuser uses the same motor used by ZWO in the older EAF models (Non pro models)
-The 3d models are also modelled based on ZWO's front plate so whatever focuser the eaf is compatible, this is also compatible.
+The 3d models are also modelled based on ZWO's front plate so whatever focuser the eaf is compatible with, this is also compatible.
 Powered by USB C 5V.
 Includes a single button for manual focusing (each press changes direction).
 
@@ -10,7 +10,7 @@ Includes a single button for manual focusing (each press changes direction).
 <img width="617" height="702" alt="image" src="https://github.com/user-attachments/assets/d24b0105-2b52-49c5-b18a-e582102fa68a" />
 
 ## Disclaimer
-This is NOT a begginer friendly project, since its all SMD components.
+This is NOT a beginner friendly project, since its all SMD components.
 But this also is not a hard SMD project, just need the right tools.
 Mainly a hot plat and\or hot air gun.
 This is one of my first SMD projects, and im positive this has a LOT of room for improvement.
@@ -32,16 +32,22 @@ This is due to me using components i already had, and the rest i ordered from LC
 For the components without LCSC part number, you can just search by name in ali express for example.
 
 ## 3d model
-The connection holes are meant to be fit with m3 heatset inserts (these: https://he.aliexpress.com/item/1005007481465353.html)
+The connection holes are meant to be fit with m3\4 heatset inserts (these: https://he.aliexpress.com/item/1005007481465353.html)
 The PCB and backplate are held with m2 heatset inserts with m2 6mm screws.
 
 # Software
-The software was a fork and (heavy) modification of DarkSkyGeeks OAG focuser project.
-A lot of the code has changed, the serial communication is mostly the same.
+The software is originally based on DarkSkyGeek's OAG focuser project.
+A lot of the code has changed, most of it is different.
+I'd like to  thank Julian for the inspiration 🙏
 
-In the software folder you can find the ascom driver installer + standalone app.
-In the standalone app you have extra functionality like settings the current\max position, Auto calibration etc...
-I'd love to be able to create the ascom driver app and standalone as one app (like the zwo mount driver for example), 
-but i currently dont have the knowledge or time to implement that (maybe someday).
+In the "Code" Folder you will find the Installer folder, in it the Output, that file will install both Ascom driver and mediator app.
 
-The code isn't the prettiest, im sure it have plenty of room for improvement, feel free to open up issues with bugs, suggestions etc...
+This will allow multiple client connections to the focuser and give extra functionalities like:
+- Auto\Manual limits calibration
+- Manually settings position, max steps, reverse direction and more..
+
+To flash the firmware on the ESP32, simply go to the arduino firmware folder, open the ino file in arduino IDE, compile and upload.
+Make sure to have the ESP32 boards setup (Board manager) and set Xiao ESP32C3 (or S3)
+And the following libraries:
+- TMCStepper library by teemuatlut.
+- EspSoftSerial by Dirk Kaar, Peter Lerup
