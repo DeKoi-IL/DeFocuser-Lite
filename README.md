@@ -11,7 +11,7 @@ Includes a single button for manual focusing (each press changes direction).
 
 There are multiple versions for models.
 You can get the motor ZWO used in their older models (described below, imaged above)
-Or you could use basic a BYJ motor with a simple modification (How to modify: https://www.youtube.com/watch?v=kCoWSqSAGug)
+Or you could use a basic BYJ motor with a simple modification (How to modify: https://www.youtube.com/watch?v=kCoWSqSAGug)
 Its great for lenses with suitable reduction!
 ![WhatsApp Image 2026-03-04 at 00 19 02](https://github.com/user-attachments/assets/f3d446ba-3176-48ff-9d81-0ab848fd1aed)
 ![WhatsApp Image 2026-01-04 at 11 39 28](https://github.com/user-attachments/assets/8c9f9e35-6b7d-4f7a-be30-97b1d1d1f248)
