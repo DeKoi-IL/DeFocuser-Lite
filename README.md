@@ -9,6 +9,19 @@ Includes a single button for manual focusing (each press changes direction).
 <img width="758" height="658" alt="image" src="https://github.com/user-attachments/assets/4cdb19ac-4699-4f49-9c2c-0dc32b65c3b4" />
 <img width="617" height="702" alt="image" src="https://github.com/user-attachments/assets/d24b0105-2b52-49c5-b18a-e582102fa68a" />
 
+There are multiple versions for models.
+You can get the motor ZWO used in their older models (described below, imaged above)
+Or you could use basic a BYJ motor with a simple modification (How to modify: https://www.youtube.com/watch?v=kCoWSqSAGug)
+Its great for lenses with suitable reduction!
+![WhatsApp Image 2026-03-04 at 00 19 02](https://github.com/user-attachments/assets/f3d446ba-3176-48ff-9d81-0ab848fd1aed)
+![WhatsApp Image 2026-01-04 at 11 39 28](https://github.com/user-attachments/assets/8c9f9e35-6b7d-4f7a-be30-97b1d1d1f248)
+![WhatsApp Image 2026-03-04 at 00 26 04](https://github.com/user-attachments/assets/4ba3dbff-8b33-45f8-b408-64b82b9ebc21)
+
+Or you could retrofit the motor and front plate of the really old 12V ZWO focuser
+![WhatsApp Image 2026-01-10 at 22 27 24](https://github.com/user-attachments/assets/e524d956-3fb2-4f9e-a0f9-98c98d939e50)
+
+All versions can be found in the 3d models folder
+
 ## Disclaimer
 This is NOT a beginner friendly project, since its all SMD components.
 But this also is not a hard SMD project, just need the right tools.
