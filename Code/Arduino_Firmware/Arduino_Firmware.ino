@@ -29,10 +29,10 @@
 #define STALL_TIME_THRS 300
 #define STALL_GRACE_PERIOD 1000
 
-#define MAX_SPEED_DELAY 11000
-#define MIN_SPEED_DELAY 15000
+#define MAX_SPEED_DELAY 8000
+#define MIN_SPEED_DELAY 14000
 
-#define ACCELERATION_TIME 600.0
+#define ACCELERATION_TIME 1000.0
 
 #define DRIVER_ADDRESS 0b00  // TMC2209 address pin configuration
 #define R_SENSE 0.22f        // Sense resistor value
@@ -86,6 +86,9 @@ constexpr auto RESULT_FOCUSER_MOVE = "RESULT:FOCUSER:MOVE:";
 constexpr auto COMMAND_FOCUSER_HALT = "COMMAND:FOCUSER:HALT";
 constexpr auto RESULT_FOCUSER_HALT = "RESULT:FOCUSER:HALT:";
 
+constexpr auto COMMAND_FOCUSER_SETLIMIT = "COMMAND:FOCUSER:SETLIMIT";
+constexpr auto RESULT_FOCUSER_SETLIMIT = "RESULT:FOCUSER:SETLIMIT:";
+
 constexpr auto ERROR_INVALID_COMMAND = "ERROR:INVALID_COMMAND";
 
 const unsigned int EEPROM_MAGIC_NUMBER = 0x12345678;
@@ -126,9 +129,9 @@ uint32_t outmost_position;
 
 long acceleration_start_time = 0;
 
-uint32_t ihold   = 2;   // low hold current
-uint32_t irun    = 5;  // low run current
-uint32_t iholddelay   = 4;   // small delay
+uint32_t ihold      = 2;   // low hold current
+uint32_t irun       = 5;  // low run current
+uint32_t iholddelay = 4;   // small delay
 
 const uint8_t stall_guard_threshold = 211;
 const uint8_t stall_guard_full_stop_threshold = 50;
@@ -147,9 +150,18 @@ uint32_t lerpClamped(uint32_t a, uint32_t b, float t);
 
 bool moveFocuser(long target_position);
 void haltFocuser();
+void setLimitFocuser();
 
 void setup() 
 {
+  pinMode(EN_PIN, OUTPUT);
+  pinMode(DIR_PIN, OUTPUT);
+  pinMode(STEP_PIN, OUTPUT);
+  pinMode(DIAG_PIN, INPUT);
+  pinMode(BUTTON_PIN, INPUT);
+
+  digitalWrite(EN_PIN, HIGH); // Disable
+
 #if DEBUG
   delay(2000);
 #endif
@@ -160,14 +172,6 @@ void setup()
   Serial.println("Begin setup...");
 #endif
 
-  pinMode(EN_PIN, OUTPUT);
-  pinMode(DIR_PIN, OUTPUT);
-  pinMode(STEP_PIN, OUTPUT);
-  pinMode(DIAG_PIN, INPUT);
-  pinMode(BUTTON_PIN, INPUT);
-
-  digitalWrite(EN_PIN, HIGH); // Disable
-
   // Focuser setup
   steps_left = 0;
   direction = forward;
@@ -176,16 +180,16 @@ void setup()
   // Drive setup
   SoftSerial.begin(DRIVER_SERIAL_BAUD);
   driver.begin();
+  driver.shaft(false);
   driver.toff(4); // Enables driver
   driver.blank_time(24);
   driver.rms_current(350); // Peak = RMS * 1.414, for USB max is 500ma divided by 1.414.
-  driver.microsteps(4); // Set microsteps
+  driver.microsteps(8); // Set microsteps
 
   driver.en_spreadCycle(false); // Disable spreadCycle
   driver.pwm_autoscale(true); // Needed for StealthChop, harmless here
   driver.intpol(1);
 
-  driver.shaft(false);
   driver.irun(irun);
   driver.ihold(ihold);
   driver.iholddelay(iholddelay);
@@ -322,9 +326,13 @@ bool HandleFreeCommand(String command)
   {
     sendIsCalibratingState();
   }
-  else if (command == COMMAND_FOCUSER_HALT && is_calibrating) 
+  else if (command == COMMAND_FOCUSER_HALT && is_calibrating)
   {
     haltFocuser();
+  }
+  else if (command == COMMAND_FOCUSER_SETLIMIT && is_calibrating)
+  {
+    setLimitFocuser();
   }
   else
   {
@@ -412,6 +420,14 @@ void step()
     digitalWrite(STEP_PIN, HIGH);
     for (volatile int i = 0; i < motorDelay; i++) { asm volatile("nop"); } // 1000 = ~2-3µs
     digitalWrite(STEP_PIN, LOW);
+
+    // If this was the last step, disable the motor to save power
+    // and prevent heat build up. The physical button path already
+    // calls stop() on release, but serial moves need this.
+    if (steps_left == 0)
+    {
+      stop();
+    }
   }
 }
 
@@ -635,9 +651,9 @@ void setFocuserPosition(int target_position)
     }
 }
 
-bool moveFocuser(long target_position) 
+bool moveFocuser(long target_position)
 {
-  if (steps_left > 0) 
+  if (steps_left > 0)
   {
     return false;
   }
@@ -645,12 +661,12 @@ bool moveFocuser(long target_position)
   stall_grace = millis();
   acceleration_start_time = millis();
 
-  if (target_position >= position) 
+  if (target_position >= position)
   {
     steps_left = target_position - position;
     digitalWrite(DIR_PIN, is_reverse ? LOW : HIGH);
     direction = forward;
-  } 
+  }
   else
   {
     steps_left = position - target_position;
@@ -658,15 +674,44 @@ bool moveFocuser(long target_position)
     direction = backward;
   }
 
+  // Don't enable the motor if there are no steps to take.
+  // This prevents the motor from being energized indefinitely
+  // when the target position equals the current position.
+  if (steps_left == 0)
+  {
+    return true;
+  }
+
   digitalWrite(EN_PIN, LOW); // Enable
 
   return true;
 }
 
-void haltFocuser() 
+void haltFocuser()
 {
     stop();
+
+    if (is_calibrating)
+    {
+        // Halt during calibration cancels the entire process.
+        is_calibrating = false;
+        calibration_step = 0;
+        stall_delay = -1;
+    }
+
     Serial.print(RESULT_FOCUSER_HALT);
+    Serial.println(MSG_OK);
+}
+
+void setLimitFocuser()
+{
+    // Called during calibration to manually signal that a limit has been reached.
+    // Advances to the next calibration step.
+    stop();
+    stall_delay = -1;
+    calibrationMoveNext();
+
+    Serial.print(RESULT_FOCUSER_SETLIMIT);
     Serial.println(MSG_OK);
 }
 

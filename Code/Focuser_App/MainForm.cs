@@ -1,11 +1,14 @@
-﻿/*
+/*
  * MainForm.cs
  * Copyright (C) 2022 - Present, Michael Levgold (DeKoi) - All Rights Reserved
  * Based on the original work of Julien Lecomte with his OAG Focuser.
  * Licensed under the MIT License. See the accompanying LICENSE file for terms.
+ *
+ * DeFocuser Lite Mediator Application.
+ * This app owns the serial connection to the focuser hardware and exposes it
+ * to ASCOM driver clients via named pipes. It also provides a direct UI for
+ * manual focuser control.
  */
-
-using ASCOM.DriverAccess;
 
 using System;
 using System.Drawing;
@@ -15,16 +18,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace ASCOM.DeKoi.DeFocuserStandalone
+namespace ASCOM.DeKoi.DeFocuserMediator
 {
     public partial class MainForm : Form
     {
-        internal static string DRIVER_ID = "ASCOM.DeKoi.DeFocuserLite";
-        internal const string SET_POSITION_COMMAND = "SetPosition";
-        internal const string CALIBRATE_COMMAND = "Calibrate";
-        internal const string IS_CALIBRATING_COMMAND = "IsCalibrating";
-        internal const string IS_REVERSE_COMMAND = "IsReverse";
-        internal const string SET_REVERSE_COMMAND = "SetReverse";
         internal static int HIGH_JUMP = 300;
         internal static int LOW_JUMP = 100;
 
@@ -45,45 +42,115 @@ namespace ASCOM.DeKoi.DeFocuserStandalone
             }
         }
 
-        private Focuser device = null;
+        private SerialManager serialManager;
+        private PipeServer pipeServer;
 
-        private bool IsCalibrating => device.Action(IS_CALIBRATING_COMMAND, "") == "TRUE";
+        private bool IsCalibrating => serialManager != null && serialManager.IsConnected && serialManager.GetIsCalibrating();
 
-        private bool IsReverse => device.Action(IS_REVERSE_COMMAND, "") == "TRUE";
+        private bool IsReverse => serialManager != null && serialManager.IsConnected && serialManager.GetIsReverse();
 
         public MainForm()
         {
             InitializeComponent();
+
+            serialManager = new SerialManager();
+            pipeServer = new PipeServer(serialManager);
+
+            // Update UI when ASCOM client count changes
+            pipeServer.ClientCountChanged += (count) =>
+            {
+                if (InvokeRequired)
+                {
+                    Invoke(new Action(() => lblClientsVal.Text = count.ToString()));
+                }
+                else
+                {
+                    lblClientsVal.Text = count.ToString();
+                }
+            };
+
+            // Populate COM port list
+            RefreshComPorts();
+
+            // Restore last used COM port and auto-connect if available
+            string lastPort = Properties.Settings.Default.LastComPort;
+            if (!string.IsNullOrEmpty(lastPort))
+            {
+                int idx = comboBoxComPort.Items.IndexOf(lastPort);
+                if (idx >= 0)
+                {
+                    comboBoxComPort.SelectedIndex = idx;
+                    // Auto-connect on startup using the saved port
+                    AutoConnectOnStartup(lastPort);
+                }
+            }
+
             updateUI();
         }
 
-        private void instantiateDevice()
+        private void AutoConnectOnStartup(string comPort)
         {
-            if (device == null)
+            comboBoxComPort.Enabled = false;
+            chkAutoDetect.Enabled = false;
+            btnRefreshPorts.Enabled = false;
+            btnConnect.Enabled = false;
+            backlashCompTextBox.Enabled = false;
+
+            try
             {
-                try
-                {
-                    device = new Focuser(DRIVER_ID);
-                }
-                catch (Exception)
-                {
-                    MessageBox.Show(this, "An error occurred while loading the focuser driver.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
+                serialManager.Connect(comPort, false);
+                pipeServer.Start();
+                btnConnect.Text = "Disconnect";
+                btnConnect.Image = Properties.Resources.power_off;
+            }
+            catch (Exception)
+            {
+                // Auto-connect failed — clear saved port so we don't retry
+                // on next launch. A new successful connection will re-save it.
+                Properties.Settings.Default.LastComPort = "";
+                Properties.Settings.Default.Save();
+            }
+
+            btnConnect.Enabled = true;
+        }
+
+        private void RefreshComPorts()
+        {
+            comboBoxComPort.Items.Clear();
+            comboBoxComPort.Items.AddRange(System.IO.Ports.SerialPort.GetPortNames());
+            if (comboBoxComPort.Items.Count > 0)
+            {
+                comboBoxComPort.SelectedIndex = 0;
             }
         }
 
         private void updateUI()
         {
-            bool connected = device != null && device.Connected;
-            bool moving = connected && device.IsMoving;
-            bool isCalibrating = connected && IsCalibrating;
-            bool isReverse = connected && IsReverse;
+            bool connected = serialManager != null && serialManager.IsConnected;
+            bool moving = false;
+            bool isCalibrating = false;
+            bool isReverse = false;
 
-            btnSettings.Enabled = !connected;
+            if (connected)
+            {
+                try
+                {
+                    moving = serialManager.GetIsMoving();
+                    isCalibrating = serialManager.GetIsCalibrating();
+                    isReverse = serialManager.GetIsReverse();
+                }
+                catch (Exception) { }
+            }
+
+            comboBoxComPort.Enabled = !connected;
+            chkAutoDetect.Enabled = !connected;
+            btnRefreshPorts.Enabled = !connected;
             backlashCompTextBox.Enabled = !connected;
+
             txtBoxTgtPos.Enabled = connected;
             btnMove.Enabled = connected && !moving && !isCalibrating;
-            btnHalt.Enabled = connected && moving && !isCalibrating;
+            // Allow halt during calibration so user can signal manual limits
+            btnHalt.Enabled = connected && (moving || isCalibrating);
             btnSetPosition.Enabled = connected && !moving && !isCalibrating;
             btnMoveLeftHigh.Enabled = connected && !moving && !isCalibrating;
             btnMoveLeftLow.Enabled = connected && !moving && !isCalibrating;
@@ -91,43 +158,66 @@ namespace ASCOM.DeKoi.DeFocuserStandalone
             btnMoveRightHigh.Enabled = connected && !moving && !isCalibrating;
             btnSetZeroPos.Enabled = connected && !moving && !isCalibrating;
             btnCalibrate.Enabled = connected && !moving && !isCalibrating;
+            btnSetLimit.Enabled = connected && isCalibrating;
 
             if (connected)
             {
-                this.lblCurPosVal.Text = device.Position.ToString();
-                this.lblMaxStepsVal.Text = device.MaxStep.ToString();
+                try
+                {
+                    this.lblCurPosVal.Text = serialManager.GetPosition().ToString();
+                    this.lblMaxStepsVal.Text = serialManager.GetMaxPosition().ToString();
+                    this.checkBoxReverse.Checked = isReverse;
+                }
+                catch (Exception) { }
             }
             else
             {
                 this.lblCurPosVal.Text = "N/A";
+                this.lblMaxStepsVal.Text = "N/A";
                 this.picIsMoving.Image = Properties.Resources.no;
             }
         }
 
         private void SetFocuserPosition(int targetPosition)
         {
-            if (device != null && device.Connected)
+            if (serialManager != null && serialManager.IsConnected)
             {
-                if(targetPosition != device.Position)
+                try
                 {
-                    device.Action(SET_POSITION_COMMAND, targetPosition.ToString());
-
-                    updateUI();
+                    int currentPos = serialManager.GetPosition();
+                    if (targetPosition != currentPos)
+                    {
+                        serialManager.SetPosition(targetPosition);
+                        updateUI();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Error setting position: " + ex.Message, "Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
 
         private void SetReverse(bool isReverse)
         {
-            if (device != null && device.Connected)
+            if (serialManager != null && serialManager.IsConnected)
             {
-                device.Action(SET_REVERSE_COMMAND, isReverse.ToString());
+                try
+                {
+                    serialManager.SetReverse(isReverse);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Error setting reverse: " + ex.Message, "Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
-        
+
         private void Calibrate()
         {
-            if (device != null && device.Connected)
+            if (serialManager != null && serialManager.IsConnected)
             {
                 calibrateAsync().ConfigureAwait(false);
             }
@@ -135,37 +225,48 @@ namespace ASCOM.DeKoi.DeFocuserStandalone
 
         private async Task move(int targetPosition)
         {
-            if (device != null && device.Connected)
+            if (serialManager != null && serialManager.IsConnected)
             {
-                int delta = targetPosition - device.Position;
-                if (delta > 0)
+                try
                 {
-                    int backlashCompSteps = Convert.ToInt32(backlashCompTextBox.Text);
+                    int currentPos = serialManager.GetPosition();
+                    int delta = targetPosition - currentPos;
 
-                    // If we're moving OUT, we overshoot to deal with backlash...
-                    device.Move(device.Position + backlashCompSteps + delta);
+                    if (delta > 0)
+                    {
+                        int backlashCompSteps = Convert.ToInt32(backlashCompTextBox.Text);
 
-                    updateUI();
+                        // If we're moving OUT, we overshoot to deal with backlash...
+                        serialManager.Move(currentPos + backlashCompSteps + delta);
 
-                    await waitForDeviceToStopMoving();
+                        updateUI();
 
-                    // Once the focuser has stopped moving, we tell it to move to
-                    // its final position, thereby clearing the mechanical backlash.
-                    device.Move(device.Position - backlashCompSteps);
+                        await waitForDeviceToStopMoving();
 
-                    await waitForDeviceToStopMoving();
+                        // Once the focuser has stopped moving, we tell it to move to
+                        // its final position, thereby clearing the mechanical backlash.
+                        int newPos = serialManager.GetPosition();
+                        serialManager.Move(newPos - backlashCompSteps);
 
-                    updateUI();
+                        await waitForDeviceToStopMoving();
+
+                        updateUI();
+                    }
+                    else
+                    {
+                        serialManager.Move(targetPosition);
+
+                        updateUI();
+
+                        await waitForDeviceToStopMoving();
+
+                        updateUI();
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    device.Move(targetPosition);
-
-                    updateUI();
-
-                    await waitForDeviceToStopMoving();
-
-                    updateUI();
+                    MessageBox.Show(this, "Error moving focuser: " + ex.Message, "Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
@@ -175,19 +276,19 @@ namespace ASCOM.DeKoi.DeFocuserStandalone
             await Task.Run(() =>
             {
                 // Wait for the focuser to reach the desired position...
-                while (device.IsMoving)
+                while (serialManager.GetIsMoving())
                 {
                     Thread.Sleep(500);
                     Invoke(new Action(() =>
                     {
                         try
                         {
-                            lblCurPosVal.Text = device.Position.ToString();
+                            lblCurPosVal.Text = serialManager.GetPosition().ToString();
                             picIsMoving.Image = Properties.Resources.yes;
                             btnHalt.Enabled = true;
                             btnMove.Enabled = false;
                         }
-                        catch (Exception) {; }
+                        catch (Exception) { }
                     }));
                 }
 
@@ -202,13 +303,21 @@ namespace ASCOM.DeKoi.DeFocuserStandalone
 
         private async Task calibrateAsync()
         {
-            device.Action(CALIBRATE_COMMAND, "");
+            try
+            {
+                serialManager.Calibrate();
 
-            updateUI();
+                updateUI();
 
-            await waitForDeviceToStopCalibrating();
+                await waitForDeviceToStopCalibrating();
 
-            updateUI();
+                updateUI();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Calibration error: " + ex.Message, "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private async Task waitForDeviceToStopCalibrating()
@@ -216,19 +325,22 @@ namespace ASCOM.DeKoi.DeFocuserStandalone
             await Task.Run(() =>
             {
                 // Wait for the focuser to finish calibrating...
-                while (IsCalibrating)
+                while (serialManager.GetIsCalibrating())
                 {
                     Invoke(new Action(() =>
                     {
                         try
                         {
-                            lblCurPosVal.Text = device.Position.ToString();
+                            lblCurPosVal.Text = serialManager.GetPosition().ToString();
                             picIsMoving.Image = Properties.Resources.yes;
+                            // Keep halt enabled so user can cancel calibration
                             btnHalt.Enabled = true;
+                            // Keep Set Limit enabled so user can advance calibration steps
+                            btnSetLimit.Enabled = true;
                             btnMove.Enabled = false;
                             btnSetPosition.Enabled = false;
                         }
-                        catch (Exception) {; }
+                        catch (Exception) { }
                     }));
 
                     Thread.Sleep(500);
@@ -240,6 +352,7 @@ namespace ASCOM.DeKoi.DeFocuserStandalone
                 {
                     picIsMoving.Image = Properties.Resources.no;
                     btnHalt.Enabled = false;
+                    btnSetLimit.Enabled = false;
                     btnMove.Enabled = true;
                     btnSetPosition.Enabled = true;
                     updateUI();
@@ -249,61 +362,95 @@ namespace ASCOM.DeKoi.DeFocuserStandalone
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (device != null)
+            // If ASCOM clients are still connected, minimize to tray instead of closing
+            if (pipeServer != null && pipeServer.ConnectedClientCount > 0)
             {
-                if (device.Connected)
-                {
-                    device.Connected = false;
-                }
-                device.Dispose();
-                device = null;
+                e.Cancel = true;
+                this.Hide();
+                notifyIcon.Visible = true;
+                notifyIcon.ShowBalloonTip(3000, "DeFocuser Lite",
+                    "Still serving " + pipeServer.ConnectedClientCount + " ASCOM client(s). Right-click tray icon to force close.",
+                    ToolTipIcon.Info);
+                return;
             }
-        }
 
-        private void btnSettings_Click(object sender, EventArgs e)
-        {
-            instantiateDevice();
-            if (device != null)
+            // Clean shutdown
+            if (pipeServer != null)
             {
-                device.SetupDialog();
+                pipeServer.Dispose();
+                pipeServer = null;
+            }
+
+            if (serialManager != null)
+            {
+                if (serialManager.IsConnected)
+                {
+                    serialManager.Disconnect();
+                }
+                serialManager.Dispose();
+                serialManager = null;
+            }
+
+            if (notifyIcon != null)
+            {
+                notifyIcon.Visible = false;
+                notifyIcon.Dispose();
             }
         }
 
         private void btnConnect_Click(object sender, EventArgs e)
         {
-            if (device != null && device.Connected)
+            if (serialManager != null && serialManager.IsConnected)
             {
-                device.Connected = false;
+                // Disconnect
+                if (pipeServer.ConnectedClientCount > 0)
+                {
+                    var result = MessageBox.Show(this,
+                        "There are " + pipeServer.ConnectedClientCount + " ASCOM client(s) still connected. Disconnecting will break their connection. Continue?",
+                        "Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                    if (result != DialogResult.Yes)
+                        return;
+                }
+
+                pipeServer.Stop();
+                serialManager.Disconnect();
                 btnConnect.Text = "Connect";
                 btnConnect.Image = Properties.Resources.power_on;
                 updateUI();
             }
             else
             {
-                btnSettings.Enabled = false;
+                // Connect
+                comboBoxComPort.Enabled = false;
+                chkAutoDetect.Enabled = false;
+                btnRefreshPorts.Enabled = false;
                 btnConnect.Enabled = false;
                 backlashCompTextBox.Enabled = false;
 
-                // Hack to avoid having to use a thread/background worker.
-                // This allows the previous lines to be immediately reflected in the UI.
+                // Allow the UI to update before the potentially slow connection
                 Application.DoEvents();
 
-                instantiateDevice();
-                if (device != null)
+                try
                 {
-                    try
-                    {
-                        // This can take a while. It can also throw...
-                        device.Connected = true;
-                        btnConnect.Text = "Disconnect";
-                        btnConnect.Image = Properties.Resources.power_off;
-                        updateUI();
-                    }
-                    catch (Exception)
-                    {
-                        MessageBox.Show(this, "An error occurred while connecting to the focuser.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        updateUI();
-                    }
+                    string selectedPort = chkAutoDetect.Checked ? null : (string)comboBoxComPort.SelectedItem;
+                    serialManager.Connect(selectedPort, chkAutoDetect.Checked);
+
+                    // Start the pipe server so ASCOM clients can connect
+                    pipeServer.Start();
+
+                    // Save the connected port for auto-reconnect on next startup
+                    Properties.Settings.Default.LastComPort = serialManager.ConnectedPortName;
+                    Properties.Settings.Default.Save();
+
+                    btnConnect.Text = "Disconnect";
+                    btnConnect.Image = Properties.Resources.power_off;
+                    updateUI();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Failed to connect: " + ex.Message, "Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    updateUI();
                 }
 
                 btnConnect.Enabled = true;
@@ -335,40 +482,56 @@ namespace ASCOM.DeKoi.DeFocuserStandalone
 
         private void btnHalt_Click(object sender, EventArgs e)
         {
-            if (device != null && device.Connected)
+            if (serialManager != null && serialManager.IsConnected)
             {
-                device.Halt();
+                try
+                {
+                    serialManager.Halt();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Halt error: " + ex.Message, "Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
 
         private void btnMoveLeftHigh_Click(object sender, EventArgs e)
         {
-            int tgtPos = Math.Max(device.Position - HIGH_JUMP, 0);
+            int tgtPos = Math.Max(serialManager.GetPosition() - HIGH_JUMP, 0);
             move(tgtPos).ConfigureAwait(false);
         }
 
         private void btnMoveLeftLow_Click(object sender, EventArgs e)
         {
-            int tgtPos = Math.Max(device.Position - LOW_JUMP, 0);
+            int tgtPos = Math.Max(serialManager.GetPosition() - LOW_JUMP, 0);
             move(tgtPos).ConfigureAwait(false);
         }
 
         private void btnMoveRightLow_Click(object sender, EventArgs e)
         {
-            int tgtPos = Math.Min(device.Position + LOW_JUMP, device.MaxStep);
+            int tgtPos = Math.Min(serialManager.GetPosition() + LOW_JUMP, serialManager.GetMaxPosition());
             move(tgtPos).ConfigureAwait(false);
         }
 
         private void btnMoveRightHigh_Click(object sender, EventArgs e)
         {
-            int tgtPos = Math.Min(device.Position + HIGH_JUMP, device.MaxStep);
+            int tgtPos = Math.Min(serialManager.GetPosition() + HIGH_JUMP, serialManager.GetMaxPosition());
             move(tgtPos).ConfigureAwait(false);
         }
 
         private void btnSetZeroPos_Click(object sender, EventArgs e)
         {
-            device.Action("SetZeroPosition", "");
-            updateUI();
+            try
+            {
+                serialManager.SetZeroPosition();
+                updateUI();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Error: " + ex.Message, "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void backlashCompTextBox_Validating(object sender, System.ComponentModel.CancelEventArgs e)
@@ -392,7 +555,6 @@ namespace ASCOM.DeKoi.DeFocuserStandalone
 
         private void txtBoxTgtPos_TextChanged(object sender, EventArgs e)
         {
-
         }
 
         private void btnSetPosition_Click(object sender, EventArgs e)
@@ -509,15 +671,73 @@ namespace ASCOM.DeKoi.DeFocuserStandalone
         {
             FormRegionAndBorder(panel1, 25, e.Graphics, Color.Blue, 0);
         }
-        
+
         private void btnCalibrate_Click(object sender, EventArgs e)
         {
             Calibrate();
         }
 
+        private void btnSetLimit_Click(object sender, EventArgs e)
+        {
+            if (serialManager != null && serialManager.IsConnected)
+            {
+                try
+                {
+                    serialManager.SetLimit();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Set Limit error: " + ex.Message, "Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
         private void checkBoxReverse_Click(object sender, EventArgs e)
         {
             SetReverse(checkBoxReverse.Checked);
+        }
+
+        private void btnRefreshPorts_Click(object sender, EventArgs e)
+        {
+            RefreshComPorts();
+        }
+
+        // Tray icon handlers
+        private void notifyIcon_DoubleClick(object sender, EventArgs e)
+        {
+            this.Show();
+            this.WindowState = FormWindowState.Normal;
+            notifyIcon.Visible = false;
+        }
+
+        private void trayMenuShow_Click(object sender, EventArgs e)
+        {
+            this.Show();
+            this.WindowState = FormWindowState.Normal;
+            notifyIcon.Visible = false;
+        }
+
+        private void trayMenuForceClose_Click(object sender, EventArgs e)
+        {
+            // Force close - disconnect everything
+            if (pipeServer != null)
+            {
+                pipeServer.Stop();
+            }
+
+            if (serialManager != null && serialManager.IsConnected)
+            {
+                serialManager.Disconnect();
+            }
+
+            notifyIcon.Visible = false;
+            Application.Exit();
+        }
+
+        private void chkAutoDetect_CheckedChanged(object sender, EventArgs e)
+        {
+            comboBoxComPort.Enabled = !chkAutoDetect.Checked;
         }
     }
 }
