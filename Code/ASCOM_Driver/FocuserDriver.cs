@@ -143,29 +143,15 @@ namespace ASCOM.DeKoi
 
         /// <summary>
         /// Displays the Setup Dialog form.
-        /// Since the mediator app handles configuration, this launches the mediator
-        /// without blocking, so the caller (e.g. N.I.N.A) remains responsive.
+        /// All configuration is handled by the DeFocuser Lite Controller app.
+        /// This method does nothing heavy — the mediator app is launched
+        /// only when Connected=true is called.
         /// </summary>
         public void SetupDialog()
         {
-            if (IsConnected)
-            {
-                System.Windows.Forms.MessageBox.Show("Already connected, just press OK");
-                return;
-            }
-
-            // Launch the mediator app for configuration (non-blocking).
-            // We do NOT wait for the pipe here — that only happens in Connected=true.
-            try
-            {
-                LaunchMediatorApp();
-            }
-            catch (Exception ex)
-            {
-                System.Windows.Forms.MessageBox.Show(
-                    "Could not launch the DeFocuser Lite Mediator application.\n\n" + ex.Message,
-                    "DeFocuser Lite Setup", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
-            }
+            System.Windows.Forms.MessageBox.Show(
+                "No setup needed, click connect :)",
+                "DeFocuser Lite", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
         }
 
         public ArrayList SupportedActions
@@ -697,7 +683,7 @@ namespace ASCOM.DeKoi
         /// <summary>
         /// Ensures the mediator app is running and its pipe server is available.
         /// Launches the app if needed, then blocks until the pipe is reachable.
-        /// Used by Connected=true where we need a working pipe connection.
+        /// Fails immediately if the mediator process exits (user closed the app).
         /// </summary>
         private void EnsureMediatorAppRunning()
         {
@@ -707,6 +693,15 @@ namespace ASCOM.DeKoi
             int retries = 30; // 30 * 500ms = 15 seconds
             while (retries > 0)
             {
+                // If the mediator process has exited (user closed it), fail immediately
+                var processes = Process.GetProcessesByName(MEDIATOR_PROCESS_NAME);
+                if (processes.Length == 0)
+                {
+                    throw new DriverException(
+                        "The DeFocuser Lite Controller was closed. " +
+                        "Please connect to the focuser in the Controller app before connecting in N.I.N.A.");
+                }
+
                 try
                 {
                     using (var testPipe = new NamedPipeClientStream(".", PIPE_NAME, PipeDirection.InOut))
@@ -723,7 +718,9 @@ namespace ASCOM.DeKoi
                 Thread.Sleep(100);
             }
 
-            throw new DriverException("DeFocuser Lite Mediator application did not start in time.");
+            throw new DriverException(
+                "The DeFocuser Lite Controller is running but not connected to the focuser. " +
+                "Please select a COM port and click Connect in the Controller app first.");
         }
 
         /// <summary>
