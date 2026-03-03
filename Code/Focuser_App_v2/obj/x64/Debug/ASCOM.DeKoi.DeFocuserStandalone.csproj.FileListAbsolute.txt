@@ -1,0 +1,40 @@
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\bin\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.exe.config
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\bin\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.exe
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\bin\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.pdb
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\bin\x64\Debug\ASCOM.DriverAccess.dll
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\bin\x64\Debug\ASCOM.Utilities.dll
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\bin\x64\Debug\ASCOM.DeviceInterfaces.dll
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\bin\x64\Debug\ASCOM.Exceptions.dll
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\bin\x64\Debug\ASCOM.DriverAccess.xml
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\bin\x64\Debug\ASCOM.Utilities.xml
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\bin\x64\Debug\ASCOM.DeviceInterfaces.xml
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\bin\x64\Debug\ASCOM.Exceptions.xml
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.csproj.AssemblyReference.cache
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.MainForm.resources
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.Properties.Resources.resources
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.csproj.GenerateResource.cache
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.csproj.CoreCompileInputs.cache
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\obj\x64\Debug\ASCOM.De.BA869390.Up2Date
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.exe
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.pdb
+D:\Astrophotography\DIY Projects\ascom-oag-focuser-2\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.exe.config
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\bin\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.exe.config
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\bin\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.exe
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\bin\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.pdb
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\bin\x64\Debug\ASCOM.DriverAccess.dll
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\bin\x64\Debug\ASCOM.Utilities.dll
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\bin\x64\Debug\ASCOM.DeviceInterfaces.dll
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\bin\x64\Debug\ASCOM.Exceptions.dll
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\bin\x64\Debug\ASCOM.DriverAccess.xml
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\bin\x64\Debug\ASCOM.Utilities.xml
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\bin\x64\Debug\ASCOM.DeviceInterfaces.xml
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\bin\x64\Debug\ASCOM.Exceptions.xml
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.csproj.AssemblyReference.cache
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.exe.config
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.MainForm.resources
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.Properties.Resources.resources
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.csproj.GenerateResource.cache
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.csproj.CoreCompileInputs.cache
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\obj\x64\Debug\ASCOM.De.BA869390.Up2Date
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.exe
+D:\Astrophotography\DIY Projects\DeFocuser Lite\Focuser_App\obj\x64\Debug\ASCOM.DeKoi.DeFocuserStandalone.pdb

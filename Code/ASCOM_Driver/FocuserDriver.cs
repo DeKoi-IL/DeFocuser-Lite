@@ -3,6 +3,10 @@
  * Copyright (C) 2025 - Present, Michael Levgold (DeKoi) - All Rights Reserved
  * Based on the original work of Julien Lecomte with his OAG Focuser.
  * Licensed under the MIT License. See the accompanying LICENSE file for terms.
+ *
+ * This ASCOM driver is a thin IPC proxy. It does not own the serial connection.
+ * Instead, it communicates with the DeFocuser Lite Mediator App via named pipes.
+ * The mediator app owns the serial connection and can serve multiple ASCOM clients.
  */
 
 using ASCOM.DeviceInterface;
@@ -10,12 +14,12 @@ using ASCOM.Utilities;
 
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
-using System.Linq;
+using System.IO;
+using System.IO.Pipes;
 using System.Runtime.InteropServices;
-using System.Windows.Forms;
+using System.Threading;
 
 namespace ASCOM.DeKoi
 {
@@ -29,6 +33,7 @@ namespace ASCOM.DeKoi
 
     /// <summary>
     /// ASCOM Focuser Driver for DeKoi.
+    /// This is a thin proxy that forwards commands to the DeFocuser Lite Mediator App via named pipes.
     /// </summary>
     [Guid("33af006c-fed0-4d90-907b-9e77ea4f4fef")]
     [ProgId("ASCOM.DeKoi.DeFocuserLite")]
@@ -47,56 +52,17 @@ namespace ASCOM.DeKoi
         private static readonly string deviceName = "DeKoi DeFocuser Lite";
 
         // Constants used for Profile persistence
-        internal static string autoDetectComPortProfileName = "Auto-Detect COM Port";
-        internal static string autoDetectComPortDefault = "false";
-
-        internal static string comPortProfileName = "COM Port";
-        internal static string comPortDefault = "COM1";
-
-        internal static string lastComPortProfileName = "Last COM Port";
-        internal static string lastComPortDefault = string.Empty;
-
         internal static string traceStateProfileName = "Trace Level";
         internal static string traceStateDefault = "false";
 
-        // Variables to hold the current device configuration
-        internal static bool autoDetectComPort = Convert.ToBoolean(autoDetectComPortDefault);
-        internal static string comPortOverride = comPortDefault;
+        // Named pipe constants
+        private const string PIPE_NAME = "DeFocuserLitePipe";
+        private const string MEDIATOR_PROCESS_NAME = "ASCOM.DeKoi.DeFocuserMediator";
 
-        /// <summary>
-        /// Variable to hold the trace logger object (creates a diagnostic log file with information that you specify)
-        /// </summary>
-        internal TraceLogger tl;
-
-        /// <summary>
-        /// Private variable to hold the connected state
-        /// </summary>
-        private bool connectedState;
-
-        /// <summary>
-        // Object used to synchronize the serial communication with the device in a multi-threaded environment.
-        /// </summary>
-        private readonly object lockObject = new object();
-
-        /// <summary>
-        // The object used to communicate with the device using serial port communication.
-        /// </summary>
-        private Serial objSerial;
-
-        // Constants used to communicate with the device
-        // Make sure those values are identical to those in the Arduino Firmware.
-        // (I could not come up with an easy way to share them across the two projects)
-        private const string SEPARATOR = "\n";
-
-        private const string DEVICE_GUID = "dfafe960-d19c-4abd-af4a-4dc5f49775a3";
-
+        // Protocol constants (same as serial protocol)
         private const string OK = "OK";
-
         private const string TRUE = "TRUE";
         private const string FALSE = "FALSE";
-
-        private const string COMMAND_PING = "COMMAND:PING";
-        private const string RESULT_PING = "RESULT:PING:" + OK + ":";
 
         private const string COMMAND_FOCUSER_GETPOSITION = "COMMAND:FOCUSER:GETPOSITION";
         private const string RESULT_FOCUSER_POSITION = "RESULT:FOCUSER:POSITION:";
@@ -132,7 +98,29 @@ namespace ASCOM.DeKoi
         private const string RESULT_FOCUSER_HALT = "RESULT:FOCUSER:HALT:";
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="DeKoi"/> class.
+        /// Variable to hold the trace logger object
+        /// </summary>
+        internal TraceLogger tl;
+
+        /// <summary>
+        /// Private variable to hold the connected state
+        /// </summary>
+        private bool connectedState;
+
+        /// <summary>
+        /// Lock object for thread-safe pipe communication
+        /// </summary>
+        private readonly object lockObject = new object();
+
+        /// <summary>
+        /// Named pipe client for communicating with the mediator app
+        /// </summary>
+        private NamedPipeClientStream pipeClient;
+        private StreamReader pipeReader;
+        private StreamWriter pipeWriter;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Focuser"/> class.
         /// Must be public for COM registration.
         /// </summary>
         public Focuser()
@@ -152,26 +140,26 @@ namespace ASCOM.DeKoi
 
         /// <summary>
         /// Displays the Setup Dialog form.
-        /// If the user clicks the OK button to dismiss the form, then
-        /// the new settings are saved, otherwise the old values are reloaded.
-        /// THIS IS THE ONLY PLACE WHERE SHOWING USER INTERFACE IS ALLOWED!
+        /// Since the mediator app handles configuration, this launches the mediator.
         /// </summary>
         public void SetupDialog()
         {
-            // consider only showing the setup dialog if not connected
-            // or call a different dialog if connected
             if (IsConnected)
             {
-                MessageBox.Show("Already connected, just press OK");
+                System.Windows.Forms.MessageBox.Show("Already connected, just press OK");
+                return;
             }
 
-            using (FocuserSetupDialogForm F = new FocuserSetupDialogForm(this))
+            // Launch the mediator app for configuration
+            try
             {
-                var result = F.ShowDialog();
-                if (result == DialogResult.OK)
-                {
-                    WriteProfile(); // Persist device configuration values to the ASCOM Profile store
-                }
+                EnsureMediatorAppRunning();
+            }
+            catch (Exception ex)
+            {
+                System.Windows.Forms.MessageBox.Show(
+                    "Could not launch the DeFocuser Lite Mediator application.\n\n" + ex.Message,
+                    "DeFocuser Lite Setup", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error);
             }
         }
 
@@ -190,40 +178,45 @@ namespace ASCOM.DeKoi
         public string Action(string actionName, string actionParameters)
         {
             string response;
+            string pipeResponse;
+
             switch (actionName.ToUpper())
             {
                 case "SETZEROPOSITION":
-                    response = SendCommandToDevice("SetZeroPosition", COMMAND_FOCUSER_SETZEROPOSITION, RESULT_FOCUSER_SETZEROPOSITION);
+                    pipeResponse = SendPipeCommand(COMMAND_FOCUSER_SETZEROPOSITION);
+                    response = ParseResponse(pipeResponse, RESULT_FOCUSER_SETZEROPOSITION);
                     if (response != OK)
                     {
                         LogMessage("SetZeroPosition", "Device responded with an error");
                         throw new DriverException("Device responded with an error");
                     }
                     return string.Empty;
+
                 case "SETPOSITION":
                     int parameter = int.Parse(actionParameters);
-                    response = SendCommandToDevice("SetPosition", COMMAND_FOCUSER_SETPOSITION + parameter.ToString(), RESULT_FOCUSER_SETPOSITION);
+                    pipeResponse = SendPipeCommand(COMMAND_FOCUSER_SETPOSITION + parameter.ToString());
+                    response = ParseResponse(pipeResponse, RESULT_FOCUSER_SETPOSITION);
                     if (response != OK)
                     {
                         LogMessage("SetPosition", $"Device responded with an error for parameter {parameter} with response {response}");
                         throw new DriverException($"Device responded with an error for parameter {parameter} with response {response}");
                     }
-
                     return string.Empty;
 
                 case "SETREVERSE":
                     bool setReverseParameter = bool.Parse(actionParameters);
-                    response = SendCommandToDevice("SetReverse", COMMAND_FOCUSER_SETREVERSE + (setReverseParameter ? TRUE : FALSE), RESULT_FOCUSER_SETREVERSE);
+                    pipeResponse = SendPipeCommand(COMMAND_FOCUSER_SETREVERSE + (setReverseParameter ? TRUE : FALSE));
+                    response = ParseResponse(pipeResponse, RESULT_FOCUSER_SETREVERSE);
                     if (response != OK)
                     {
-                        LogMessage("SetPosition", $"Device responded with an error for parameter {setReverseParameter} with response {response}");
+                        LogMessage("SetReverse", $"Device responded with an error for parameter {setReverseParameter} with response {response}");
                         throw new DriverException($"Device responded with an error for parameter {setReverseParameter} with response {response}");
                     }
-
                     return string.Empty;
 
                 case "ISREVERSE":
-                    response = SendCommandToDevice("IsReverse", COMMAND_FOCUSER_ISREVERSE, RESULT_FOCUSER_ISREVERSE);
+                    pipeResponse = SendPipeCommand(COMMAND_FOCUSER_ISREVERSE);
+                    response = ParseResponse(pipeResponse, RESULT_FOCUSER_ISREVERSE);
                     if (response != TRUE && response != FALSE)
                     {
                         LogMessage("IsReverse", $"Device responded with an error: {response}");
@@ -232,7 +225,8 @@ namespace ASCOM.DeKoi
                     return response;
 
                 case "CALIBRATE":
-                    response = SendCommandToDevice("Calibrate", COMMAND_FOCUSER_CALIBRATE, RESULT_FOCUSER_CALIBRATE);
+                    pipeResponse = SendPipeCommand(COMMAND_FOCUSER_CALIBRATE);
+                    response = ParseResponse(pipeResponse, RESULT_FOCUSER_CALIBRATE);
                     if (response != OK)
                     {
                         LogMessage("Calibrate", "Device responded with an error");
@@ -241,7 +235,8 @@ namespace ASCOM.DeKoi
                     return response;
 
                 case "ISCALIBRATING":
-                    response = SendCommandToDevice("IsCalibrating", COMMAND_FOCUSER_ISCALIBRATING, RESULT_FOCUSER_ISCALIBRATING);
+                    pipeResponse = SendPipeCommand(COMMAND_FOCUSER_ISCALIBRATING);
+                    response = ParseResponse(pipeResponse, RESULT_FOCUSER_ISCALIBRATING);
                     if (response != TRUE && response != FALSE)
                     {
                         LogMessage("IsCalibrating", $"Device responded with an error: {response}");
@@ -295,83 +290,63 @@ namespace ASCOM.DeKoi
 
                 if (value)
                 {
-                    LogMessage("Connected Set", "Connecting");
+                    LogMessage("Connected Set", "Connecting to mediator app");
 
-                    Debug.Assert(objSerial == null);
+                    // 1. Launch mediator app if not running
+                    EnsureMediatorAppRunning();
 
-                    using (Profile driverProfile = new Profile() { DeviceType = "Focuser" })
+                    // 2. Connect to named pipe
+                    try
                     {
-                        Serial serial = null;
-
-                        var comPorts = new List<string>(System.IO.Ports.SerialPort.GetPortNames());
-
-                        if (autoDetectComPort)
-                        {
-                            // See if the last successfully connected COM port can be used first...
-                            // This is a performance optimization that significantly reduces the time it takes to connect!
-                            string lastComPort = driverProfile.GetValue(driverID, lastComPortProfileName, string.Empty, string.Empty);
-                            if (!string.IsNullOrEmpty(lastComPort))
-                            {
-                                var i = comPorts.IndexOf(lastComPort);
-                                if (i >= 0)
-                                {
-                                    // Move the last successfully connected COM port to the top of the list of available COM ports
-                                    // (if it was found in that list to begin with...) so that we try that first.
-                                    comPorts.RemoveAt(i);
-                                    comPorts.Insert(0, lastComPort);
-                                }
-                            }
-
-                            foreach (string comPortName in comPorts)
-                            {
-                                serial = ConnectToDevice(comPortName);
-                                if (serial != null)
-                                {
-                                    break;
-                                }
-                            }
-                        }
-                        else if (comPorts.Contains(comPortOverride))
-                        {
-                            serial = ConnectToDevice(comPortOverride);
-                        }
-                        else
-                        {
-                            throw new InvalidValueException("Invalid COM port", comPortOverride, String.Join(", ", System.IO.Ports.SerialPort.GetPortNames()));
-                        }
-
-                        if (serial != null)
-                        {
-                            objSerial = serial;
-
-                            // Persist the COM port name so that we try that first the next time
-                            // we attempt to connect (see code above in this method)
-                            driverProfile.WriteValue(driverID, lastComPortProfileName, serial.PortName);
-
-                            LogMessage("Connected Set", "Connected to port {0}", serial.PortName);
-
-                            connectedState = true;
-                        }
-                        else
-                        {
-                            throw new NotConnectedException("Failed to connect");
-                        }
+                        pipeClient = new NamedPipeClientStream(".", PIPE_NAME, PipeDirection.InOut);
+                        pipeClient.Connect(10000); // 10 second timeout
+                        pipeReader = new StreamReader(pipeClient);
+                        pipeWriter = new StreamWriter(pipeClient) { AutoFlush = true };
                     }
+                    catch (TimeoutException)
+                    {
+                        CleanupPipe();
+                        throw new NotConnectedException("Timed out connecting to the DeFocuser Lite Mediator application.");
+                    }
+                    catch (Exception ex)
+                    {
+                        CleanupPipe();
+                        throw new NotConnectedException("Failed to connect to the DeFocuser Lite Mediator: " + ex.Message);
+                    }
+
+                    // 3. Register as client
+                    string registerResponse = SendPipeCommand("IPC:CONNECT");
+                    if (registerResponse != "IPC:CONNECT:OK")
+                    {
+                        CleanupPipe();
+                        throw new NotConnectedException("Failed to register with the mediator application.");
+                    }
+
+                    // 4. Verify device connectivity
+                    string connResponse = SendPipeCommand("IPC:ISCONNECTED");
+                    if (connResponse != "IPC:ISCONNECTED:TRUE")
+                    {
+                        CleanupPipe();
+                        throw new NotConnectedException(
+                            "The DeFocuser Lite Mediator is not connected to the hardware. " +
+                            "Please open the DeFocuser Lite app, select a COM port, and click Connect.");
+                    }
+
+                    connectedState = true;
+                    LogMessage("Connected Set", "Connected via mediator app");
                 }
                 else
                 {
+                    LogMessage("Connected Set", "Disconnecting from mediator app");
                     connectedState = false;
 
-                    LogMessage("Connected Set", "Disconnecting");
+                    try
+                    {
+                        SendPipeCommand("IPC:DISCONNECT");
+                    }
+                    catch (Exception) { }
 
-                    objSerial.Connected = false;
-                    objSerial.Dispose();
-                    objSerial = null;
-
-                    // Wait for the serial connection to be fully closed...
-                    // See https://stackoverflow.com/questions/6434297/why-thread-sleep-before-serialport-open-and-close
-                    // TODO: Is there a better way?
-                    System.Threading.Thread.Sleep(1000);
+                    CleanupPipe();
                 }
             }
         }
@@ -441,17 +416,17 @@ namespace ASCOM.DeKoi
 
         public void Halt()
         {
-            SendCommandToDevice("Halt", COMMAND_FOCUSER_HALT, RESULT_FOCUSER_HALT);
+            string response = SendPipeCommand(COMMAND_FOCUSER_HALT);
+            ParseResponse(response, RESULT_FOCUSER_HALT);
             // Ignore whether the firmware responded with OK or NOK.
-            // If the firmware responded with NOK, it's likely because
-            // the focuser was not moving when the command was sent...
         }
 
         public bool IsMoving
         {
             get
             {
-                string response = SendCommandToDevice("IsMoving", COMMAND_FOCUSER_ISMOVING, RESULT_FOCUSER_ISMOVING);
+                string pipeResponse = SendPipeCommand(COMMAND_FOCUSER_ISMOVING);
+                string response = ParseResponse(pipeResponse, RESULT_FOCUSER_ISMOVING);
                 if (response != TRUE && response != FALSE)
                 {
                     LogMessage("IsMoving", "Invalid response from device: " + response);
@@ -492,7 +467,8 @@ namespace ASCOM.DeKoi
         {
             get
             {
-                string response = SendCommandToDevice("MaxStep", COMMAND_FOCUSER_GETMAXPOSITION, RESULT_FOCUSER_MAXPOSITION);
+                string pipeResponse = SendPipeCommand(COMMAND_FOCUSER_GETMAXPOSITION);
+                string response = ParseResponse(pipeResponse, RESULT_FOCUSER_MAXPOSITION);
                 int value;
                 try
                 {
@@ -514,7 +490,8 @@ namespace ASCOM.DeKoi
             {
                 throw new InvalidValueException("Position", Position.ToString(), "0", maxStep.ToString());
             }
-            string response = SendCommandToDevice("Move", COMMAND_FOCUSER_MOVE + Position.ToString(), RESULT_FOCUSER_MOVE);
+            string pipeResponse = SendPipeCommand(COMMAND_FOCUSER_MOVE + Position.ToString());
+            string response = ParseResponse(pipeResponse, RESULT_FOCUSER_MOVE);
             if (response != OK)
             {
                 LogMessage("Move", "Device responded with an error");
@@ -526,7 +503,8 @@ namespace ASCOM.DeKoi
         {
             get
             {
-                string response = SendCommandToDevice("Position", COMMAND_FOCUSER_GETPOSITION, RESULT_FOCUSER_POSITION);
+                string pipeResponse = SendPipeCommand(COMMAND_FOCUSER_GETPOSITION);
+                string response = ParseResponse(pipeResponse, RESULT_FOCUSER_POSITION);
                 int value;
                 try
                 {
@@ -589,13 +567,7 @@ namespace ASCOM.DeKoi
         #region ASCOM Registration
 
         // Register or unregister driver for ASCOM. This is harmless if already
-        // registered or unregistered. 
-        //
-        /// <summary>
-        /// Register or unregister the driver with the ASCOM Platform.
-        /// This is harmless if the driver is already registered/unregistered.
-        /// </summary>
-        /// <param name="bRegister">If <c>true</c>, registers the driver, otherwise unregisters it.</param>
+        // registered or unregistered.
         private static void RegUnregASCOM(bool bRegister)
         {
             using (var P = new Profile())
@@ -612,46 +584,12 @@ namespace ASCOM.DeKoi
             }
         }
 
-        /// <summary>
-        /// This function registers the driver with the ASCOM Chooser and
-        /// is called automatically whenever this class is registered for COM Interop.
-        /// </summary>
-        /// <param name="t">Type of the class being registered, not used.</param>
-        /// <remarks>
-        /// This method typically runs in two distinct situations:
-        /// <list type="numbered">
-        /// <item>
-        /// In Visual Studio, when the project is successfully built.
-        /// For this to work correctly, the option <c>Register for COM Interop</c>
-        /// must be enabled in the project settings.
-        /// </item>
-        /// <item>During setup, when the installer registers the assembly for COM Interop.</item>
-        /// </list>
-        /// This technique should mean that it is never necessary to manually register a driver with ASCOM.
-        /// </remarks>
         [ComRegisterFunction]
         public static void RegisterASCOM(Type t)
         {
             RegUnregASCOM(true);
         }
 
-        /// <summary>
-        /// This function unregisters the driver from the ASCOM Chooser and
-        /// is called automatically whenever this class is unregistered from COM Interop.
-        /// </summary>
-        /// <param name="t">Type of the class being registered, not used.</param>
-        /// <remarks>
-        /// This method typically runs in two distinct situations:
-        /// <list type="numbered">
-        /// <item>
-        /// In Visual Studio, when the project is cleaned or prior to rebuilding.
-        /// For this to work correctly, the option <c>Register for COM Interop</c>
-        /// must be enabled in the project settings.
-        /// </item>
-        /// <item>During uninstall, when the installer unregisters the assembly from COM Interop.</item>
-        /// </list>
-        /// This technique should mean that it is never necessary to manually unregister a driver from ASCOM.
-        /// </remarks>
         [ComUnregisterFunction]
         public static void UnregisterASCOM(Type t)
         {
@@ -674,7 +612,6 @@ namespace ASCOM.DeKoi
         /// <summary>
         /// Use this function to throw an exception if we aren't connected to the hardware
         /// </summary>
-        /// <param name="message"></param>
         private void CheckConnected(string message)
         {
             if (!IsConnected)
@@ -692,13 +629,11 @@ namespace ASCOM.DeKoi
             {
                 driverProfile.DeviceType = "Focuser";
                 tl.Enabled = Convert.ToBoolean(driverProfile.GetValue(driverID, traceStateProfileName, string.Empty, traceStateDefault));
-                autoDetectComPort = Convert.ToBoolean(driverProfile.GetValue(driverID, autoDetectComPortProfileName, string.Empty, autoDetectComPortDefault));
-                comPortOverride = driverProfile.GetValue(driverID, comPortProfileName, string.Empty, comPortDefault);
             }
         }
 
         /// <summary>
-        /// Write the device configuration to the  ASCOM  Profile store
+        /// Write the device configuration to the ASCOM Profile store
         /// </summary>
         internal void WriteProfile()
         {
@@ -706,134 +641,138 @@ namespace ASCOM.DeKoi
             {
                 driverProfile.DeviceType = "Focuser";
                 driverProfile.WriteValue(driverID, traceStateProfileName, tl.Enabled.ToString());
-                driverProfile.WriteValue(driverID, autoDetectComPortProfileName, autoDetectComPort.ToString());
-                if (comPortOverride != null)
-                {
-                    driverProfile.WriteValue(driverID, comPortProfileName, comPortOverride.ToString());
-                }
             }
         }
 
         /// <summary>
-        /// Attempts to connect to the specified COM port.
-        /// Returns a Serial object if successful, null otherwise.
+        /// Ensures the mediator app is running. Launches it if not.
+        /// The mediator EXE is expected in the same directory as this driver DLL.
         /// </summary>
-        /// <param name="comPortName"></param>
-        internal Serial ConnectToDevice(string comPortName)
+        private void EnsureMediatorAppRunning()
         {
-            if (!System.IO.Ports.SerialPort.GetPortNames().Contains(comPortName))
+            // Check if the mediator process is already running
+            var processes = Process.GetProcessesByName(MEDIATOR_PROCESS_NAME);
+            if (processes.Length > 0)
             {
-                throw new InvalidValueException("Invalid COM port", comPortName, String.Join(", ", System.IO.Ports.SerialPort.GetPortNames()));
+                LogMessage("EnsureMediatorAppRunning", "Mediator app is already running");
+                return;
             }
 
-            Serial serial;
+            // Launch the mediator app from the same directory as the driver DLL
+            string driverDir = Path.GetDirectoryName(
+                System.Reflection.Assembly.GetExecutingAssembly().Location);
+            string appPath = Path.Combine(driverDir, MEDIATOR_PROCESS_NAME + ".exe");
 
-            LogMessage("ConnectToDevice", "Connecting to port {0}", comPortName);
-
-            try
+            if (!File.Exists(appPath))
             {
-                serial = new Serial
+                throw new DriverException("DeFocuser Lite Mediator application not found at: " + appPath);
+            }
+
+            LogMessage("EnsureMediatorAppRunning", "Launching mediator app from: " + appPath);
+            Process.Start(appPath);
+
+            // Wait for the pipe to become available
+            int retries = 30; // 30 * 500ms = 15 seconds
+            while (retries > 0)
+            {
+                try
                 {
-                    Speed = SerialSpeed.ps57600,
-                    PortName = comPortName,
-                    Connected = true,
-                    // Use a short timeout value to make polling fail fast in case this is the wrong port...
-                    ReceiveTimeout = 1
-                };
-            }
-            catch (Exception)
-            {
-                // If trying to connect to a port that is already in use, an exception will be thrown.
-                return null;
-            }
-
-            // Wait for the serial connection to establish...
-            // TODO: Is there a better way?
-            System.Threading.Thread.Sleep(1000);
-
-            serial.ClearBuffers();
-
-            // Poll the device (with the short timeout value set above) until successful,
-            // or until we've reached the retry count limit of 3...
-            for (int retries = 3; retries >= 0; retries--)
-            {
-                string response = "";
-
-                lock (lockObject)
-                {
-                    try
+                    using (var testPipe = new NamedPipeClientStream(".", PIPE_NAME, PipeDirection.InOut))
                     {
-                        serial.Transmit(COMMAND_PING + SEPARATOR);
-                        response = serial.ReceiveTerminated(SEPARATOR).Trim();
-                    }
-                    catch (Exception)
-                    {
-                        // PortInUse or Timeout exceptions may happen here!
-                        // We ignore them.
+                        testPipe.Connect(500);
+                        LogMessage("EnsureMediatorAppRunning", "Mediator pipe is available");
+                        return; // Pipe is available
                     }
                 }
+                catch (TimeoutException) { }
+                catch (IOException) { }
 
-                if (response == RESULT_PING + DEVICE_GUID)
-                {
-                    // Restore default timeout value...
-                    serial.ReceiveTimeout = 5;
-                    return serial;
-                }
+                retries--;
+                Thread.Sleep(100);
             }
 
-            serial.Connected = false;
-            serial.Dispose();
-
-            return null;
+            throw new DriverException("DeFocuser Lite Mediator application did not start in time.");
         }
 
         /// <summary>
-        /// Send a command to the device and returns the response
+        /// Send a command over the named pipe and return the response.
         /// </summary>
-        /// <param name="identifier"></param>
-        /// <param name="command"></param>
-        /// <param name="resultPrefix"></param>
-        internal string SendCommandToDevice(string identifier, string command, string resultPrefix)
+        private string SendPipeCommand(string command)
         {
-            CheckConnected(identifier);
-
-            string response;
+            // IPC commands don't require hardware connection
+            if (!command.StartsWith("IPC:"))
+            {
+                CheckConnected("SendPipeCommand: " + command);
+            }
 
             lock (lockObject)
             {
-                LogMessage(identifier, "Sending command " + command + " to device...");
-                objSerial.Transmit(command + SEPARATOR);
-                LogMessage(identifier, "Waiting for response from device...");
+                LogMessage("SendPipeCommand", "Sending: " + command);
 
                 try
                 {
-                    response = objSerial.ReceiveTerminated(SEPARATOR).Trim();
+                    pipeWriter.WriteLine(command);
+                    string response = pipeReader.ReadLine();
+
+                    LogMessage("SendPipeCommand", "Received: " + response);
+
+                    if (response == null)
+                    {
+                        throw new DriverException("Mediator app pipe connection was closed unexpectedly.");
+                    }
+
+                    // Check for error responses from the mediator
+                    if (response.StartsWith("ERROR:"))
+                    {
+                        string errorMsg = response.Substring(6);
+                        if (errorMsg == "NOT_CONNECTED")
+                        {
+                            throw new NotConnectedException(
+                                "The DeFocuser Lite Mediator is not connected to the hardware. " +
+                                "Please open the DeFocuser Lite app, select a COM port, and click Connect.");
+                        }
+                        throw new DriverException("Mediator error: " + errorMsg);
+                    }
+
+                    return response;
                 }
-                catch (Exception e)
+                catch (IOException ex)
                 {
-                    LogMessage(identifier, "Exception: " + e.Message);
-                    throw e;
+                    connectedState = false;
+                    throw new NotConnectedException("Lost connection to the DeFocuser Lite Mediator: " + ex.Message);
                 }
             }
+        }
 
-            LogMessage(identifier, "Response from device: " + response);
-
-            if (!response.StartsWith(resultPrefix))
+        /// <summary>
+        /// Parse a response from the pipe, stripping the expected prefix.
+        /// </summary>
+        private string ParseResponse(string response, string expectedPrefix)
+        {
+            if (!response.StartsWith(expectedPrefix))
             {
-                LogMessage(identifier, "Invalid response from device: " + response);
+                LogMessage("ParseResponse", "Invalid response: " + response + " (expected prefix: " + expectedPrefix + ")");
                 throw new DriverException("Invalid response from device: " + response);
             }
+            return response.Substring(expectedPrefix.Length);
+        }
 
-            string arg = response.Substring(resultPrefix.Length);
-            return arg;
+        /// <summary>
+        /// Clean up pipe resources
+        /// </summary>
+        private void CleanupPipe()
+        {
+            try { pipeWriter?.Dispose(); } catch { }
+            try { pipeReader?.Dispose(); } catch { }
+            try { pipeClient?.Dispose(); } catch { }
+            pipeWriter = null;
+            pipeReader = null;
+            pipeClient = null;
         }
 
         /// <summary>
         /// Log helper function that takes formatted strings and arguments
         /// </summary>
-        /// <param name="identifier"></param>
-        /// <param name="message"></param>
-        /// <param name="args"></param>
         internal void LogMessage(string identifier, string message, params object[] args)
         {
             var msg = string.Format(message, args);

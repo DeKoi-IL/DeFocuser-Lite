@@ -1,42 +1,50 @@
-#define MyAppPublisher "Dark Sky Geek"
-#define MyAppName "OAG Focuser ASCOM Driver"
-#define MyAppVersion "1.4.0"
-#define MyAppURL "https://github.com/jlecomte/ascom-oag-focuser"
+#define MyAppPublisher "DeKoi"
+#define MyAppName "DeFocuser Lite"
+#define MyAppVersion "2.0.0"
 
 [Setup]
 AppId={{2760CB5C-EDA1-41F8-BCD1-CE6E1A8B673B}
 AppName={#MyAppPublisher}'s {#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-AppPublisherURL={#MyAppURL}
-AppSupportURL={#MyAppURL}/issues
-AppUpdatesURL={#MyAppURL}/releases
 DefaultDirName={autopf}\{#MyAppPublisher}\{#MyAppName}
 DisableProgramGroupPage=yes
 Compression=lzma
 SolidCompression=yes
 UninstallFilesDir="{app}\Uninstall"
-SourceDir="C:\Users\Julien\source\repos\ascom-oag-focuser"
-OutputDir="Installer"
+SourceDir=".."
+OutputDir="Installer\Output"
 OutputBaseFilename={#MyAppPublisher} {#MyAppName} Setup-{#MyAppVersion}
 WizardImageFile="Installer\WizardImageFile.bmp"
+ArchitecturesInstallIn64BitMode=x64
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "ASCOM_Driver\bin\Release\ASCOM.DarkSkyGeek.OAGFocusDriver.dll"; DestDir: "{app}"
-Source: "Focuser_App\bin\x64\Release\ASCOM.DarkSkyGeek.FocuserApp.exe"; DestDir: "{app}"
+; ASCOM Driver DLL (thin IPC proxy)
+Source: "ASCOM_Driver\bin\Release\ASCOM.DeKoi.DeFocuserLite.dll"; DestDir: "{app}"
+; Mediator App EXE (owns serial connection, serves ASCOM clients)
+Source: "Focuser_App_v2\bin\x64\Release\ASCOM.DeKoi.DeFocuserMediator.exe"; DestDir: "{app}"
+
+[Icons]
+Name: "{group}\DeFocuser Lite Controller"; Filename: "{app}\ASCOM.DeKoi.DeFocuserMediator.exe"
+Name: "{commondesktop}\DeFocuser Lite Controller"; Filename: "{app}\ASCOM.DeKoi.DeFocuserMediator.exe"; Tasks: desktopicon
+
+[Tasks]
+Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
 
 [Run]
-Filename: "{dotnet4032}\regasm.exe"; Parameters: "/codebase ""{app}\ASCOM.DarkSkyGeek.OAGFocusDriver.dll"""; Flags: runhidden 32bit
-Filename: "{dotnet4064}\regasm.exe"; Parameters: "/codebase ""{app}\ASCOM.DarkSkyGeek.OAGFocusDriver.dll"""; Flags: runhidden 64bit; Check: IsWin64
+; Register COM for 32-bit
+Filename: "{dotnet4032}\regasm.exe"; Parameters: "/codebase ""{app}\ASCOM.DeKoi.DeFocuserLite.dll"""; Flags: runhidden 32bit
+; Register COM for 64-bit
+Filename: "{dotnet4064}\regasm.exe"; Parameters: "/codebase ""{app}\ASCOM.DeKoi.DeFocuserLite.dll"""; Flags: runhidden 64bit; Check: IsWin64
 
 [UninstallRun]
-Filename: "{dotnet4032}\regasm.exe"; Parameters: "-u ""{app}\ASCOM.DarkSkyGeek.OAGFocusDriver.dll"""; Flags: runhidden 32bit
+Filename: "{dotnet4032}\regasm.exe"; Parameters: "-u ""{app}\ASCOM.DeKoi.DeFocuserLite.dll"""; Flags: runhidden 32bit
 ; This helps to give a clean uninstall
-Filename: "{dotnet4064}\regasm.exe"; Parameters: "/codebase ""{app}\ASCOM.DarkSkyGeek.OAGFocusDriver.dll"""; Flags: runhidden 64bit; Check: IsWin64
-Filename: "{dotnet4064}\regasm.exe"; Parameters: "-u ""{app}\ASCOM.DarkSkyGeek.OAGFocusDriver.dll"""; Flags: runhidden 64bit; Check: IsWin64
+Filename: "{dotnet4064}\regasm.exe"; Parameters: "/codebase ""{app}\ASCOM.DeKoi.DeFocuserLite.dll"""; Flags: runhidden 64bit; Check: IsWin64
+Filename: "{dotnet4064}\regasm.exe"; Parameters: "-u ""{app}\ASCOM.DeKoi.DeFocuserLite.dll"""; Flags: runhidden 64bit; Check: IsWin64
 
 [Code]
 const REQUIRED_PLATFORM_VERSION = 6.2; // Set this to the minimum required ASCOM Platform version for this application

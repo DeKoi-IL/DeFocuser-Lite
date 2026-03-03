@@ -29,10 +29,10 @@
 #define STALL_TIME_THRS 300
 #define STALL_GRACE_PERIOD 1000
 
-#define MAX_SPEED_DELAY 11000
-#define MIN_SPEED_DELAY 15000
+#define MAX_SPEED_DELAY 8000
+#define MIN_SPEED_DELAY 14000
 
-#define ACCELERATION_TIME 600.0
+#define ACCELERATION_TIME 1000.0
 
 #define DRIVER_ADDRESS 0b00  // TMC2209 address pin configuration
 #define R_SENSE 0.22f        // Sense resistor value
@@ -126,9 +126,9 @@ uint32_t outmost_position;
 
 long acceleration_start_time = 0;
 
-uint32_t ihold   = 2;   // low hold current
-uint32_t irun    = 5;  // low run current
-uint32_t iholddelay   = 4;   // small delay
+uint32_t ihold      = 2;   // low hold current
+uint32_t irun       = 5;  // low run current
+uint32_t iholddelay = 4;   // small delay
 
 const uint8_t stall_guard_threshold = 211;
 const uint8_t stall_guard_full_stop_threshold = 50;
@@ -150,6 +150,14 @@ void haltFocuser();
 
 void setup() 
 {
+  pinMode(EN_PIN, OUTPUT);
+  pinMode(DIR_PIN, OUTPUT);
+  pinMode(STEP_PIN, OUTPUT);
+  pinMode(DIAG_PIN, INPUT);
+  pinMode(BUTTON_PIN, INPUT);
+
+  digitalWrite(EN_PIN, HIGH); // Disable
+
 #if DEBUG
   delay(2000);
 #endif
@@ -160,14 +168,6 @@ void setup()
   Serial.println("Begin setup...");
 #endif
 
-  pinMode(EN_PIN, OUTPUT);
-  pinMode(DIR_PIN, OUTPUT);
-  pinMode(STEP_PIN, OUTPUT);
-  pinMode(DIAG_PIN, INPUT);
-  pinMode(BUTTON_PIN, INPUT);
-
-  digitalWrite(EN_PIN, HIGH); // Disable
-
   // Focuser setup
   steps_left = 0;
   direction = forward;
@@ -176,16 +176,16 @@ void setup()
   // Drive setup
   SoftSerial.begin(DRIVER_SERIAL_BAUD);
   driver.begin();
+  driver.shaft(false);
   driver.toff(4); // Enables driver
   driver.blank_time(24);
   driver.rms_current(350); // Peak = RMS * 1.414, for USB max is 500ma divided by 1.414.
-  driver.microsteps(4); // Set microsteps
+  driver.microsteps(8); // Set microsteps
 
   driver.en_spreadCycle(false); // Disable spreadCycle
   driver.pwm_autoscale(true); // Needed for StealthChop, harmless here
   driver.intpol(1);
 
-  driver.shaft(false);
   driver.irun(irun);
   driver.ihold(ihold);
   driver.iholddelay(iholddelay);
@@ -663,9 +663,16 @@ bool moveFocuser(long target_position)
   return true;
 }
 
-void haltFocuser() 
+void haltFocuser()
 {
     stop();
+
+    if (is_calibrating)
+    {
+        stall_delay = -1;
+        calibrationMoveNext();
+    }
+
     Serial.print(RESULT_FOCUSER_HALT);
     Serial.println(MSG_OK);
 }
