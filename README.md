@@ -9,6 +9,8 @@ Includes a single button for manual focusing (each press changes direction).
 <img width="758" height="658" alt="image" src="https://github.com/user-attachments/assets/4cdb19ac-4699-4f49-9c2c-0dc32b65c3b4" />
 <img width="617" height="702" alt="image" src="https://github.com/user-attachments/assets/d24b0105-2b52-49c5-b18a-e582102fa68a" />
 
+## 3D Models
+
 There are multiple versions for models.
 You can get the motor ZWO used in their older models (described below, imaged above)
 Or you could use a basic BYJ motor with a simple modification (How to modify: https://www.youtube.com/watch?v=kCoWSqSAGug)
@@ -44,11 +46,11 @@ The rest of the components are in the kicad folder BOM file.
 This is due to me using components i already had, and the rest i ordered from LCSC.
 For the components without LCSC part number, you can just search by name in ali express for example.
 
-## 3d model
+## Hardware
 The connection holes are meant to be fit with m3\4 heatset inserts (these: https://he.aliexpress.com/item/1005007481465353.html)
 The PCB and backplate are held with m2 heatset inserts with m2 6mm screws.
 
-# Software
+## Software
 The software is originally based on DarkSkyGeek's OAG focuser project.
 A lot of the code has changed, most of it is different.
 I'd like to  thank Julian for the inspiration 🙏
@@ -64,3 +66,28 @@ Make sure to have the ESP32 boards setup (Board manager) and set Xiao ESP32C3 (o
 And the following libraries:
 - TMCStepper library by teemuatlut.
 - EspSoftSerial by Dirk Kaar, Peter Lerup
+
+## Automatic limits calibration
+This is very motor and configuration specific.
+Not every motor behaves the same since the TMC's way of detecting stalls is back EMF measurement, and your motor might not behave as well as mine with the same configurations.
+What can you do to fine tune?
+There are multiple parameters in the esp firmware to look for:
+
+```
+#define STALL_COUNT_THRESHOLD 2 // How many time should the stall interrupt be raised before we consider real stall
+#define STALL_TIME_THRS 300     // In what time frame should these stalls be detected (in milliseconds)
+#define STALL_GRACE_PERIOD 1000 // When starting motor, there are many false detections, how long should we ignoe stall detections (in milliseconds)
+
+const uint8_t stall_guard_threshold = 211; // A tmc configuration for stall threshold, higher means less sensitive to detections
+```
+
+If limit calibration isn't working for you, try playing around with these parameters according to your situation.
+For example:
+Lets say the motor hits a hard physical limit but motor still makes noise trying to move (IE stall wasn't detected),
+Try changing one of the following one by one (changing multiple parameters might make fine tuning harder):
+- stall_guard_threshold = Start with lowering this slowly and see if anything changes
+- STALL_TIME_THRS = Increase this to allow slow stall detections to accumulate
+- STALL_COUNT_THRESHOLD = You could reduce this, but i suggest not doing that since that might increase false detections
+
+If this doesn't work, you could set DEBUG to 1 and look for stall logs, and see how ofter if stalls are detected at all.
+If they are not detected, or they are detected but too slow, reduce stall_guard_threshold.
