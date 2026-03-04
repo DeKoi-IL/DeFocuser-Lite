@@ -9,6 +9,8 @@ Includes a single button for manual focusing (each press changes direction).
 <img width="758" height="658" alt="image" src="https://github.com/user-attachments/assets/4cdb19ac-4699-4f49-9c2c-0dc32b65c3b4" />
 <img width="617" height="702" alt="image" src="https://github.com/user-attachments/assets/d24b0105-2b52-49c5-b18a-e582102fa68a" />
 
+## 3D Models
+
 There are multiple versions for models.
 You can get the motor ZWO used in their older models (described below, imaged above)
 Or you could use a basic BYJ motor with a simple modification (How to modify: https://www.youtube.com/watch?v=kCoWSqSAGug)
@@ -44,11 +46,11 @@ The rest of the components are in the kicad folder BOM file.
 This is due to me using components i already had, and the rest i ordered from LCSC.
 For the components without LCSC part number, you can just search by name in ali express for example.
 
-## 3d model
+## Hardware
 The connection holes are meant to be fit with m3\4 heatset inserts (these: https://he.aliexpress.com/item/1005007481465353.html)
 The PCB and backplate are held with m2 heatset inserts with m2 6mm screws.
 
-# Software
+## Software
 The software is originally based on DarkSkyGeek's OAG focuser project.
 A lot of the code has changed, most of it is different.
 I'd like to  thank Julian for the inspiration 🙏
@@ -65,7 +67,7 @@ And the following libraries:
 - TMCStepper library by teemuatlut.
 - EspSoftSerial by Dirk Kaar, Peter Lerup
 
-# Automatic limits calibration
+## Automatic limits calibration
 This is very motor and configuration specific.
 Not every motor behaves the same since the TMC's way of detecting stalls is back EMF measurement, and your motor might not behave as well as mine with the same configurations.
 What can you do to fine tune?
