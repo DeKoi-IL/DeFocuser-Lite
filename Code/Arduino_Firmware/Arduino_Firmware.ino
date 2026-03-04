@@ -134,7 +134,6 @@ uint32_t irun       = 5;  // low run current
 uint32_t iholddelay = 4;   // small delay
 
 const uint8_t stall_guard_threshold = 211;
-const uint8_t stall_guard_full_stop_threshold = 50;
 uint8_t stall_counter = 0;
 int start_stall_time = 0;
 int stall_delay = -1;
