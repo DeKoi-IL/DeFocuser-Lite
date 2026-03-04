@@ -64,3 +64,28 @@ Make sure to have the ESP32 boards setup (Board manager) and set Xiao ESP32C3 (o
 And the following libraries:
 - TMCStepper library by teemuatlut.
 - EspSoftSerial by Dirk Kaar, Peter Lerup
+
+# Automatic limits calibration
+This is very motor and configuration specific.
+Not every motor behaves the same since the TMC's way of detecting stalls is back EMF measurement, and your motor might not behave as well as mine with the same configurations.
+What can you do to fine tune?
+There are multiple parameters in the esp firmware to look for:
+
+```
+#define STALL_COUNT_THRESHOLD 2 // How many time should the stall interrupt be raised before we consider real stall
+#define STALL_TIME_THRS 300     // In what time frame should these stalls be detected (in milliseconds)
+#define STALL_GRACE_PERIOD 1000 // When starting motor, there are many false detections, how long should we ignoe stall detections (in milliseconds)
+
+const uint8_t stall_guard_threshold = 211; // A tmc configuration for stall threshold, higher means less sensitive to detections
+```
+
+If limit calibration isn't working for you, try playing around with these parameters according to your situation.
+For example:
+Lets say the motor hits a hard physical limit but motor still makes noise trying to move (IE stall wasn't detected),
+Try changing one of the following one by one (changing multiple parameters might make fine tuning harder):
+- stall_guard_threshold = Start with lowering this slowly and see if anything changes
+- STALL_TIME_THRS = Increase this to allow slow stall detections to accumulate
+- STALL_COUNT_THRESHOLD = You could reduce this, but i suggest not doing that since that might increase false detections
+
+If this doesn't work, you could set DEBUG to 1 and look for stall logs, and see how ofter if stalls are detected at all.
+If they are not detected, or they are detected but too slow, reduce stall_guard_threshold.
