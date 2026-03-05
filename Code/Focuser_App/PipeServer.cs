@@ -118,10 +118,20 @@ namespace ASCOM.DeKoi.DeFocuserMediator
                         break;
                     }
 
-                    // Spawn a handler for this client (don't await - run concurrently)
+                    // Spawn a handler for this client (don't await - run concurrently).
+                    // ContinueWith catches any exception that escapes HandleClient's
+                    // own try/catch, preventing unobserved task exceptions.
                     var clientPipe = pipe;
                     pipe = null; // Prevent disposal in finally
-                    Task.Run(() => HandleClient(clientPipe, token));
+                    _ = Task.Run(() => HandleClient(clientPipe, token))
+                        .ContinueWith(t => 
+                        { 
+                            try 
+                            { 
+                                clientPipe.Dispose(); 
+                            } 
+                            catch { } 
+                        }, TaskContinuationOptions.OnlyOnFaulted);
                 }
                 catch (OperationCanceledException)
                 {
@@ -231,7 +241,7 @@ namespace ASCOM.DeKoi.DeFocuserMediator
                 return "IPC:ISCONNECTED:" + (serialManager.IsConnected ? "TRUE" : "FALSE");
             }
 
-            // Handle PING locally (the mediator itself can respond)
+            // Handle PING locally (the mediator itself can respond since motor might not be connected yet)
             if (command == "COMMAND:PING")
             {
                 if (serialManager.IsConnected)

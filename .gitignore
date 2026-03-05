@@ -38,3 +38,20 @@ fp-info-cache
 
 # Local project settings
 *.kicad_prl
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# NuGet
+packages/
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
