@@ -418,7 +418,7 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                 SelectedPort = AvailablePorts[0];
             }
 
-            Log(LogKind.Info, "DeFocuser Controller v2.0.0 ready");
+            Log(LogKind.Info, "DeFocuser Controller v" + GetAppVersion() + " ready");
         }
 
         private readonly string persistedLastPort;
@@ -561,6 +561,20 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         {
             try { return serial.GetSpeed(); }
             catch { return null; }
+        }
+
+        private static string GetAppVersion()
+        {
+            try
+            {
+                var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                if (v == null) return "?";
+                // Trim trailing .0 revision (matches the X.Y.Z tag passed to build.ps1).
+                return v.Revision == 0
+                    ? v.Major + "." + v.Minor + "." + v.Build
+                    : v.ToString();
+            }
+            catch { return "?"; }
         }
 
         private int? SafeGetStallThreshold()
