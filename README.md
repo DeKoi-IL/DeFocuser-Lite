@@ -61,39 +61,88 @@ The software is originally based on DarkSkyGeek's OAG focuser project.
 A lot of the code has changed, most of it is different.
 I'd like to  thank Julian for the inspiration 🙏
 
-In the "Code" Folder you will find the Installer folder, in it the Output, that file will install both Ascom driver and mediator app.
+The current shipped app is a WPF rewrite (`Code/FocuserApp`) that replaces the older WinForms mediator (kept around as `Code/Focuser_App-Legacy/` for reference). It owns the serial connection to the focuser, exposes it to ASCOM clients via named pipes, and gives you a manual control UI on top.
 
 This will allow multiple client connections to the focuser and give extra functionalities like:
 - Auto\Manual limits calibration
 - Manually settings position, max steps, reverse direction and more..
+- Per-motor stall-detection sensitivity slider
+- Speed selection (Fast / Normal / Slow)
+- Live serial console (TX/RX, app events)
 
+### Installing the app
+The pre-built installer lives in the `Installer/` folder at the repo root:
+
+```
+Installer/DeKoi DeFocuser Lite Setup-<version>.exe
+```
+
+Run it. It installs both the ASCOM driver DLL (`ASCOM.DeKoi.DeFocuserLite.dll`) and the controller app (`ASCOM.DeKoi.DeFocuserApp.exe`), and registers the driver for COM under both 32-bit and 64-bit `regasm`. Requires ASCOM Platform 6.2 or later — the installer checks and bails out with a message if you don't have it.
+
+If you want the prior WinForms version, the legacy installer source sits in `Code/Installer-Legacy/` and the legacy WinForms app in `Code/Focuser_App-Legacy/`. The standalone driver/installer that pre-dates all of this is preserved in `Code/Software-Legacy/`.
+
+### Flashing the firmware
 To flash the firmware on the ESP32, simply go to the arduino firmware folder, open the ino file in arduino IDE, compile and upload.
 Make sure to have the ESP32 boards setup (Board manager) and set Xiao ESP32C3 (or S3)
 And the following libraries:
 - TMCStepper library by teemuatlut.
 - EspSoftSerial by Dirk Kaar, Peter Lerup
 
+## Building from source
+The repo ships a one-shot build pipeline (`build.cmd` / `build.ps1`) that patches assembly versions, builds the ASCOM driver + the WPF controller, and compiles the Inno Setup installer in one go.
+
+### Prerequisites
+- Visual Studio 2019 / 2022 (Community / Pro / Enterprise / BuildTools — anything with MSBuild). The script auto-locates `MSBuild.exe`.
+- [Inno Setup 6](https://jrsoftware.org/isdl.php) — script auto-locates `ISCC.exe`.
+- ASCOM Platform 6.2 or later (the driver references `ASCOM.Utilities`).
+- For the firmware: Arduino IDE with ESP32 boards + the libraries listed above.
+
+### Build commands
+From a regular `cmd.exe` prompt:
+
+```cmd
+build.cmd 2.1.0
+build.cmd 2.1.0 -OutputDir D:\Releases
+build.cmd 2.1.0 -SkipBuild
+build.cmd 2.1.0 -Configuration Debug
+```
+
+From PowerShell:
+
+```powershell
+.\build.ps1 -Version 2.1.0
+.\build.ps1 -Version 2.1.0 -OutputDir D:\Releases
+.\build.ps1 -Version 2.1.0 -SkipBuild
+.\build.ps1 -Version 2.1.0 -Configuration Debug
+```
+
+What it does:
+1. Patches `AssemblyVersion` + `AssemblyFileVersion` in `Code/FocuserApp/Properties/AssemblyInfo.cs` and `Code/ASCOM_Driver/Properties/AssemblyInfo.cs`.
+2. Builds the ASCOM driver (`Release | AnyCPU`).
+3. Builds the WPF app (`Release | x64`).
+4. Compiles `Code/FocuserApp/Installer/Setup.iss` with `ISCC`, injecting `/DMyAppVersion=<version>`.
+5. Drops the resulting `DeKoi DeFocuser Lite Setup-<version>.exe` into `Installer/` (or whatever you pass to `-OutputDir`).
+
+The fonts used by the app are **Inter** (UI) and **JetBrains Mono** (numeric readouts). Both are free OFL fonts; install them system-wide for pixel-perfect rendering — fallback to system fonts otherwise.
+
 ## Automatic limits calibration
 This is very motor and configuration specific.
 Not every motor behaves the same since the TMC's way of detecting stalls is back EMF measurement, and your motor might not behave as well as mine with the same configurations.
-What can you do to fine tune?
-There are multiple parameters in the esp firmware to look for:
+
+The first place to tune is the **Stall sense** slider in the controller app's Focuser Settings card — it scrubs the TMC's `SGTHRS` register from `128` (most sensitive) to `255` (least sensitive). The value persists to EEPROM, so you only set it once. Default is `211`.
+
+If the slider alone doesn't get you where you want, there are a few firmware-side parameters you can tweak in `Code/Arduino_Firmware/Arduino_Firmware.ino`:
 
 ```
 #define STALL_COUNT_THRESHOLD 2 // How many time should the stall interrupt be raised before we consider real stall
 #define STALL_TIME_THRS 300     // In what time frame should these stalls be detected (in milliseconds)
-#define STALL_GRACE_PERIOD 1000 // When starting motor, there are many false detections, how long should we ignoe stall detections (in milliseconds)
-
-const uint8_t stall_guard_threshold = 211; // A tmc configuration for stall threshold, higher means less sensitive to detections
+#define STALL_GRACE_PERIOD 1000 // When starting motor, there are many false detections, how long should we ignore stall detections (in milliseconds)
 ```
 
-If limit calibration isn't working for you, try playing around with these parameters according to your situation.
-For example:
 Lets say the motor hits a hard physical limit but motor still makes noise trying to move (IE stall wasn't detected),
 Try changing one of the following one by one (changing multiple parameters might make fine tuning harder):
-- stall_guard_threshold = Start with lowering this slowly and see if anything changes
-- STALL_TIME_THRS = Increase this to allow slow stall detections to accumulate
-- STALL_COUNT_THRESHOLD = You could reduce this, but i suggest not doing that since that might increase false detections
+- **Stall sense slider** = Start by sliding it toward the "Most sensitive" end, see if the stall is detected sooner.
+- `STALL_TIME_THRS` = Increase this to allow slow stall detections to accumulate.
+- `STALL_COUNT_THRESHOLD` = You could reduce this, but i suggest not doing that since that might increase false detections.
 
-If this doesn't work, you could set DEBUG to 1 and look for stall logs, and see how ofter if stalls are detected at all.
-If they are not detected, or they are detected but too slow, reduce stall_guard_threshold.
+If this doesn't work, set `DEBUG` to `1` and watch the stall logs in the app's console — you'll see how often (or whether) stalls get detected. If they don't fire at all, or fire too slowly, slide stall sense further toward "Most sensitive".
