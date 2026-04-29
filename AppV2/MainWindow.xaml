@@ -1,0 +1,777 @@
+<Window x:Class="ASCOM.DeKoi.DeFocuserApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:ASCOM.DeKoi.DeFocuserApp.ViewModels"
+        xmlns:local="clr-namespace:ASCOM.DeKoi.DeFocuserApp"
+        mc:Ignorable="d"
+        Title="DeFocuser Controller"
+        Width="1180" Height="820"
+        MinWidth="980" MinHeight="700"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ResizeMode="CanResize"
+        FontFamily="{StaticResource SansFont}" FontSize="13"
+        Foreground="{StaticResource TextBrush}"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+
+  <WindowChrome.WindowChrome>
+    <WindowChrome CaptionHeight="0" GlassFrameThickness="0" CornerRadius="0" ResizeBorderThickness="6" />
+  </WindowChrome.WindowChrome>
+
+  <Window.Resources>
+    <Style x:Key="WinIconPath" TargetType="Path">
+      <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+      <Setter Property="StrokeThickness" Value="1.4" />
+      <Setter Property="StrokeStartLineCap" Value="Round" />
+      <Setter Property="StrokeEndLineCap" Value="Round" />
+      <Setter Property="StrokeLineJoin" Value="Round" />
+      <Setter Property="Stretch" Value="None" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="HeaderIconPath" TargetType="Path">
+      <Setter Property="Stroke" Value="{StaticResource AccentBrush}" />
+      <Setter Property="StrokeThickness" Value="1.6" />
+      <Setter Property="StrokeStartLineCap" Value="Round" />
+      <Setter Property="StrokeEndLineCap" Value="Round" />
+      <Setter Property="StrokeLineJoin" Value="Round" />
+      <Setter Property="Stretch" Value="None" />
+      <Setter Property="Width" Value="16" />
+      <Setter Property="Height" Value="16" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="ButtonIconPath" TargetType="Path" BasedOn="{StaticResource HeaderIconPath}">
+      <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+      <Setter Property="Width" Value="13" />
+      <Setter Property="Height" Value="13" />
+    </Style>
+
+    <Style x:Key="StatusDot" TargetType="Ellipse">
+      <Setter Property="Width" Value="7" />
+      <Setter Property="Height" Value="7" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </Window.Resources>
+
+  <!-- Outer shell with rounded corners + drop shadow -->
+  <Border Background="{StaticResource WindowBackgroundBrush}"
+          CornerRadius="14"
+          BorderBrush="{StaticResource LineBrush}"
+          BorderThickness="1"
+          Margin="12"
+          Effect="{StaticResource WindowShadow}"
+          SnapsToDevicePixels="True"
+          ClipToBounds="True">
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+
+      <!-- ==================== TITLE BAR ==================== -->
+      <Border Grid.Row="0"
+              Background="{StaticResource TitleBarBrush}"
+              BorderBrush="{StaticResource LineBrush}"
+              BorderThickness="0,0,0,1"
+              Padding="14,10"
+              MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+
+          <!-- Brand -->
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Border Width="22" Height="22" CornerRadius="6"
+                    Background="{StaticResource LogoGradient}"
+                    Effect="{StaticResource PrimaryGlow}"
+                    SnapsToDevicePixels="True">
+              <Border Margin="5" CornerRadius="999">
+                <Border.Background>
+                  <RadialGradientBrush Center="0.35,0.35" GradientOrigin="0.35,0.35" RadiusX="0.7" RadiusY="0.7">
+                    <GradientStop Color="White" Offset="0" />
+                    <GradientStop Color="#FFFFD9DA" Offset="0.3" />
+                    <GradientStop Color="Transparent" Offset="0.6" />
+                  </RadialGradientBrush>
+                </Border.Background>
+              </Border>
+            </Border>
+
+            <TextBlock Text="DeFocuser Controller"
+                       Foreground="{StaticResource TextBrush}"
+                       FontSize="13" FontWeight="SemiBold"
+                       Margin="10,0,0,0" VerticalAlignment="Center" />
+          </StackPanel>
+
+          <!-- Window controls -->
+          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+            <Button Style="{StaticResource WindowControlButton}" Click="MinimizeButton_Click" ToolTip="Minimize">
+              <Path Data="{StaticResource Icon.Min}" Style="{StaticResource WinIconPath}" Width="11" Height="11" />
+            </Button>
+            <Button Style="{StaticResource WindowControlButton}" Click="MaximizeButton_Click" ToolTip="Maximize">
+              <Path Data="{StaticResource Icon.Max}" Style="{StaticResource WinIconPath}" Width="11" Height="11" />
+            </Button>
+            <Button Style="{StaticResource WindowCloseButton}" Click="CloseButton_Click" ToolTip="Close">
+              <Path Data="{StaticResource Icon.X}" Style="{StaticResource WinIconPath}" Width="11" Height="11" />
+            </Button>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- ==================== BODY ==================== -->
+      <ScrollViewer Grid.Row="1"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled"
+                    Padding="14,14,14,0">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="14" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ===== LEFT COLUMN ===== -->
+        <DockPanel Grid.Column="0" LastChildFill="False">
+
+          <!-- Connection Card -->
+          <Expander DockPanel.Dock="Top" Style="{StaticResource Card}" Margin="0,0,0,14"
+                    IsExpanded="{Binding ConnectionExpanded, Mode=TwoWay}">
+            <Expander.Header>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal">
+                  <Path Data="{StaticResource Icon.Plug}" Style="{StaticResource HeaderIconPath}" />
+                  <TextBlock Text="CONNECTION" Style="{StaticResource CardLabel}" Margin="9,0,0,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                  <!-- Status pill -->
+                  <Border x:Name="ConnPillGood" Style="{StaticResource StatusPill.Good}"
+                          Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Orientation="Horizontal">
+                      <Ellipse Style="{StaticResource StatusDot}" Fill="{StaticResource GoodBrush}" />
+                      <TextBlock Text="Connected" Margin="7,0,0,0" Foreground="#FF7BE3B3"
+                                 FontSize="11.5" FontWeight="Medium" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Border>
+                  <Border Style="{StaticResource StatusPill}"
+                          Visibility="{Binding IsDisconnected, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Orientation="Horizontal">
+                      <Ellipse Style="{StaticResource StatusDot}" Fill="{StaticResource Text4Brush}" />
+                      <TextBlock Text="Disconnected" Margin="7,0,0,0" Foreground="{StaticResource Text2Brush}"
+                                 FontSize="11.5" FontWeight="Medium" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Border>
+                  <Path Data="{StaticResource Icon.Chevron}" Style="{StaticResource CardChevron}" Margin="9,0,0,0" />
+                </StackPanel>
+              </Grid>
+            </Expander.Header>
+
+            <StackPanel>
+              <!-- COM port row -->
+              <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="110" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="COM port" Style="{StaticResource FieldLabel}" />
+                <Grid Grid.Column="1">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="120" />
+                  </Grid.ColumnDefinitions>
+                  <ComboBox ItemsSource="{Binding AvailablePorts}"
+                            SelectedItem="{Binding SelectedPort, Mode=TwoWay}"
+                            IsEnabled="{Binding IsConnected, Converter={StaticResource InvertBool}}" />
+                  <ComboBox Grid.Column="2"
+                            ItemsSource="{Binding AvailableBauds}"
+                            SelectedItem="{Binding SelectedBaud, Mode=TwoWay}"
+                            IsEnabled="{Binding IsConnected, Converter={StaticResource InvertBool}}" />
+                </Grid>
+              </Grid>
+
+              <!-- Refresh ports row -->
+              <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="110" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                  <Button Style="{StaticResource IconButton}"
+                          Command="{Binding RefreshPortsCommand}"
+                          ToolTip="Refresh ports">
+                    <Path Data="{StaticResource Icon.Refresh}" Style="{StaticResource ButtonIconPath}" />
+                  </Button>
+                  <TextBlock Text="Refresh ports" Foreground="{StaticResource Text3Brush}"
+                             FontSize="13" Margin="10,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+              </Grid>
+
+              <!-- Auto detect / auto connect row -->
+              <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="110" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" />
+                <Grid Grid.Column="1">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <CheckBox Content="Auto-Detect" IsChecked="{Binding AutoDetect, Mode=TwoWay}"
+                            IsEnabled="{Binding IsConnected, Converter={StaticResource InvertBool}}" />
+                  <CheckBox Grid.Column="2" Content="Auto-connect on open"
+                            IsChecked="{Binding AutoConnectOnOpen, Mode=TwoWay}" />
+                </Grid>
+              </Grid>
+
+              <!-- divider -->
+              <Border Height="1" Background="{StaticResource LineBrush}" Margin="-14,4,-14,12" />
+
+              <!-- Action buttons -->
+              <StackPanel Orientation="Horizontal">
+                <Button Style="{StaticResource SmButton}"
+                        Command="{Binding AutoDetectCommand}"
+                        IsEnabled="{Binding IsConnected, Converter={StaticResource InvertBool}}">Auto-Detect</Button>
+
+                <Button Style="{StaticResource PrimaryButton}" Margin="8,0,0,0"
+                        Command="{Binding ConnectCommand}"
+                        Visibility="{Binding IsDisconnected, Converter={StaticResource BoolToVis}}">
+                  <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource Icon.Plug}" Style="{StaticResource ButtonIconPath}"
+                          Stroke="White" Margin="0,0,7,0" />
+                    <TextBlock Text="Connect" />
+                  </StackPanel>
+                </Button>
+
+                <Button Style="{StaticResource DangerButton}" Margin="8,0,0,0"
+                        Command="{Binding DisconnectCommand}"
+                        Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}">Disconnect</Button>
+              </StackPanel>
+            </StackPanel>
+          </Expander>
+
+          <!-- Focuser Settings Card -->
+          <Expander DockPanel.Dock="Top" Style="{StaticResource Card}"
+                    IsExpanded="{Binding SettingsExpanded, Mode=TwoWay}">
+            <Expander.Header>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal">
+                  <Path Data="{StaticResource Icon.Cog}" Style="{StaticResource HeaderIconPath}" />
+                  <TextBlock Text="FOCUSER SETTINGS" Style="{StaticResource CardLabel}" Margin="9,0,0,0" />
+                </StackPanel>
+                <Path Grid.Column="1" Data="{StaticResource Icon.Chevron}" Style="{StaticResource CardChevron}" />
+              </Grid>
+            </Expander.Header>
+
+            <StackPanel>
+              <!-- Max travel -->
+              <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="110" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Max travel" Style="{StaticResource FieldLabel}" />
+                <Grid Grid.Column="1">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="60" />
+                  </Grid.ColumnDefinitions>
+                  <TextBox IsReadOnly="True" Text="{Binding MaxPosition, Converter={StaticResource Thousands}, Mode=OneWay}" />
+                  <TextBlock Grid.Column="1" Text="steps" Style="{StaticResource MutedText}" Margin="8,0,0,0" />
+                </Grid>
+              </Grid>
+
+              <!-- Speed: Fast = firmware native, Normal/Slow scale step delay up. -->
+              <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="110" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Speed" Style="{StaticResource FieldLabel}" />
+                <ComboBox Grid.Column="1"
+                          ItemsSource="{Binding SpeedOptions}"
+                          SelectedItem="{Binding Speed, Mode=TwoWay}"
+                          IsEnabled="{Binding IsConnected}" />
+              </Grid>
+
+              <!-- Backlash compensation -->
+              <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="110" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Backlash" Style="{StaticResource FieldLabel}" />
+                <Grid Grid.Column="1">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="60" />
+                  </Grid.ColumnDefinitions>
+                  <TextBox Text="{Binding BacklashCompensation, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                           IsEnabled="{Binding IsConnected, Converter={StaticResource InvertBool}}" />
+                  <TextBlock Grid.Column="1" Text="steps" Style="{StaticResource MutedText}" Margin="8,0,0,0" />
+                </Grid>
+              </Grid>
+
+              <!-- Stall sensitivity slider (TMC SGTHRS register, 128..255) -->
+              <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="110" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Stall sense" Style="{StaticResource FieldLabel}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                <StackPanel Grid.Column="1">
+                  <Slider Style="{StaticResource ThemedSlider}"
+                          Minimum="{Binding StallThresholdMin, Mode=OneWay}"
+                          Maximum="{Binding StallThresholdMax, Mode=OneWay}"
+                          Value="{Binding StallThreshold, Mode=TwoWay}"
+                          SmallChange="1" LargeChange="8"
+                          IsEnabled="{Binding IsConnected}" />
+                  <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Most sensitive"
+                               Foreground="{StaticResource Text3Brush}" FontSize="10.5"
+                               HorizontalAlignment="Left" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding StallThreshold}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="11"
+                               Foreground="{StaticResource Text2Brush}"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="Least sensitive"
+                               Foreground="{StaticResource Text3Brush}" FontSize="10.5"
+                               HorizontalAlignment="Right" />
+                  </Grid>
+                </StackPanel>
+              </Grid>
+
+              <!-- Reverse -->
+              <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="110" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" />
+                <CheckBox Grid.Column="1" Content="Reverse direction"
+                          IsChecked="{Binding Reverse, Mode=TwoWay}"
+                          IsEnabled="{Binding IsConnected}" />
+              </Grid>
+
+              <Border Height="1" Background="{StaticResource LineBrush}" Margin="-14,8,-14,12" />
+
+              <StackPanel Orientation="Horizontal">
+                <Button Style="{StaticResource SmButton}" Command="{Binding SetZeroCommand}">
+                  <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource Icon.Zero}" Style="{StaticResource ButtonIconPath}" Margin="0,0,7,0" />
+                    <TextBlock Text="Set Zero" />
+                  </StackPanel>
+                </Button>
+                <Button Style="{StaticResource SmButton}" Command="{Binding CalibrateCommand}" Margin="8,0,0,0">
+                  <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource Icon.Calibrate}" Style="{StaticResource ButtonIconPath}" Margin="0,0,7,0" />
+                    <TextBlock Text="Calibrate" />
+                  </StackPanel>
+                </Button>
+                <Button Style="{StaticResource SmButton}" Command="{Binding SetLimitCommand}" Margin="8,0,0,0">
+                  <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource Icon.Limit}" Style="{StaticResource ButtonIconPath}" Margin="0,0,7,0" />
+                    <TextBlock Text="Set Limit" />
+                  </StackPanel>
+                </Button>
+              </StackPanel>
+            </StackPanel>
+          </Expander>
+        </DockPanel>
+
+        <!-- ===== RIGHT COLUMN ===== -->
+        <DockPanel Grid.Column="2" LastChildFill="False">
+
+          <!-- Position Card -->
+          <Expander DockPanel.Dock="Top" Style="{StaticResource Card}" Margin="0,0,0,14"
+                    IsExpanded="{Binding PositionExpanded, Mode=TwoWay}">
+            <Expander.Header>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal">
+                  <Path Data="{StaticResource Icon.Target}" Style="{StaticResource HeaderIconPath}" />
+                  <TextBlock Text="CURRENT POSITION" Style="{StaticResource CardLabel}" Margin="9,0,0,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                  <Border Style="{StaticResource StatusPill.Good}"
+                          Visibility="{Binding IsMoving, Converter={StaticResource BoolToVisInverted}}">
+                    <StackPanel Orientation="Horizontal">
+                      <Ellipse Style="{StaticResource StatusDot}" Fill="{StaticResource GoodBrush}" />
+                      <TextBlock Text="Idle" Margin="7,0,0,0" Foreground="#FF7BE3B3"
+                                 FontSize="11.5" FontWeight="Medium" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Border>
+                  <Border Style="{StaticResource StatusPill.Warn}"
+                          Visibility="{Binding IsMoving, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Orientation="Horizontal">
+                      <Ellipse Style="{StaticResource StatusDot}" Fill="{StaticResource WarnBrush}" />
+                      <TextBlock Text="Moving" Margin="7,0,0,0" Foreground="#FFFFC66E"
+                                 FontSize="11.5" FontWeight="Medium" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Border>
+                  <Path Data="{StaticResource Icon.Chevron}" Style="{StaticResource CardChevron}" Margin="9,0,0,0" />
+                </StackPanel>
+              </Grid>
+            </Expander.Header>
+
+            <StackPanel>
+              <!-- Two-cell readout -->
+              <Border Background="{StaticResource Panel2Brush}"
+                      BorderBrush="{StaticResource LineBrush}"
+                      BorderThickness="1" CornerRadius="9" SnapsToDevicePixels="True">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="1" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+
+                  <!-- Position cell -->
+                  <StackPanel Margin="14,12">
+                    <TextBlock Text="POSITION" Foreground="{StaticResource Text3Brush}"
+                               FontSize="10.5" FontWeight="SemiBold" Margin="0,0,0,4"
+                               Typography.Capitals="AllSmallCaps" />
+                    <TextBlock Text="{Binding Position, Converter={StaticResource Thousands}}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="22" FontWeight="Medium"
+                               Foreground="{StaticResource TextBrush}" />
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                      <TextBlock Text="steps · " Foreground="{StaticResource Text3Brush}"
+                                 FontFamily="{StaticResource MonoFont}" FontSize="11.5" />
+                      <TextBlock Text="{Binding PercentOfTravel, Converter={StaticResource Percentage}}"
+                                 Foreground="{StaticResource Text3Brush}"
+                                 FontFamily="{StaticResource MonoFont}" FontSize="11.5" />
+                      <TextBlock Text=" of travel" Foreground="{StaticResource Text3Brush}"
+                                 FontFamily="{StaticResource MonoFont}" FontSize="11.5" />
+                    </StackPanel>
+                  </StackPanel>
+
+                  <Rectangle Grid.Column="1" Fill="{StaticResource LineBrush}" />
+
+                  <!-- Target cell -->
+                  <StackPanel Grid.Column="2" Margin="14,12">
+                    <TextBlock Text="TARGET" Foreground="{StaticResource Text3Brush}"
+                               FontSize="10.5" FontWeight="SemiBold" Margin="0,0,0,4"
+                               Typography.Capitals="AllSmallCaps" />
+                    <TextBlock Text="{Binding Target, Converter={StaticResource Thousands}}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="22" FontWeight="Medium"
+                               Foreground="{StaticResource TextBrush}" />
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                      <TextBlock Text="Δ " Foreground="{StaticResource Text3Brush}"
+                                 FontFamily="{StaticResource MonoFont}" FontSize="11.5" />
+                      <TextBlock Text="{Binding DeltaSteps, Converter={StaticResource Thousands}}"
+                                 Foreground="{StaticResource Text3Brush}"
+                                 FontFamily="{StaticResource MonoFont}" FontSize="11.5" />
+                      <TextBlock Text=" steps" Foreground="{StaticResource Text3Brush}"
+                                 FontFamily="{StaticResource MonoFont}" FontSize="11.5" />
+                    </StackPanel>
+                  </StackPanel>
+                </Grid>
+              </Border>
+
+              <!-- Progress bar -->
+              <Border x:Name="ProgressTrack" Margin="0,10,0,0" Height="8" CornerRadius="6"
+                      Background="{StaticResource Panel2Brush}"
+                      BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
+                      ClipToBounds="True"
+                      Visibility="{Binding ShowProgress, Converter={StaticResource BoolToVis}}"
+                      SizeChanged="ProgressTrack_SizeChanged">
+                <Grid>
+                  <Border x:Name="ProgressFill" Background="{StaticResource ProgressFillBrush}"
+                          HorizontalAlignment="Left"
+                          CornerRadius="6" />
+                </Grid>
+              </Border>
+
+              <!-- Min / Max footer -->
+              <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="0" Style="{StaticResource MutedText}" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                  <TextBlock Text="Max " Style="{StaticResource MutedText}" />
+                  <TextBlock Text="{Binding MaxPosition, Converter={StaticResource Thousands}}"
+                             FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                             Foreground="{StaticResource Text2Brush}" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Expander>
+
+          <!-- Movement Card -->
+          <Expander DockPanel.Dock="Top" Style="{StaticResource Card}"
+                    IsExpanded="{Binding MovementExpanded, Mode=TwoWay}">
+            <Expander.Header>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal">
+                  <Path Data="{StaticResource Icon.Jog}" Style="{StaticResource HeaderIconPath}" />
+                  <TextBlock Text="MOVEMENT" Style="{StaticResource CardLabel}" Margin="9,0,0,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                  <Button Style="{StaticResource DangerButton}" Height="22" Padding="8,0"
+                          FontSize="11.5"
+                          Command="{Binding HaltCommand}"
+                          Click="HaltButton_Click">
+                    <StackPanel Orientation="Horizontal">
+                      <Path Data="{StaticResource Icon.Halt}" Style="{StaticResource ButtonIconPath}"
+                            Stroke="#FFFF7A7E" Margin="0,0,5,0" />
+                      <TextBlock Text="HALT" />
+                    </StackPanel>
+                  </Button>
+                  <Path Data="{StaticResource Icon.Chevron}" Style="{StaticResource CardChevron}" Margin="9,0,0,0" />
+                </StackPanel>
+              </Grid>
+            </Expander.Header>
+
+            <StackPanel>
+              <TextBlock Text="TARGET POSITION" Style="{StaticResource SubLabel}" />
+
+              <!-- Stepper + Move -->
+              <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="8" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Background="{StaticResource Panel2Brush}"
+                        BorderBrush="{StaticResource Line2Brush}"
+                        BorderThickness="1" CornerRadius="7"
+                        Height="30"
+                        ClipToBounds="True">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Style="{StaticResource StepperButton}" Content="−"
+                            Command="{Binding TargetDecrementCommand}" />
+                    <TextBox Grid.Column="1"
+                             Text="{Binding Target, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             BorderThickness="0" Background="Transparent"
+                             HorizontalContentAlignment="Center"
+                             FontFamily="{StaticResource MonoFont}" FontSize="13" />
+                    <Button Grid.Column="2" Style="{StaticResource StepperButton}" Content="+"
+                            Command="{Binding TargetIncrementCommand}" />
+                  </Grid>
+                </Border>
+
+                <Button Grid.Column="2" Style="{StaticResource PrimaryButton}"
+                        Height="30" Padding="14,0"
+                        Command="{Binding MoveCommand}">Move</Button>
+              </Grid>
+
+              <TextBlock Text="JOG" Style="{StaticResource SubLabel}" />
+
+              <!-- Step size -->
+              <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Step size" Style="{StaticResource MutedText}" />
+                <ListBox Grid.Column="1"
+                         Style="{StaticResource SegmentedListBox}"
+                         ItemsSource="{Binding StepSizeOptions}"
+                         SelectedItem="{Binding StepSize, Mode=TwoWay}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding Converter={StaticResource Thousands}}" />
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </Grid>
+
+              <!-- Jog buttons -->
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="6" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="6" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="6" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0" Style="{StaticResource JogButton}"
+                        Command="{Binding JogCommand}" CommandParameter="-10">
+                  <StackPanel>
+                    <TextBlock Text="«" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"
+                               Foreground="{StaticResource TextBrush}" FontFamily="{StaticResource MonoFont}" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,0">
+                      <TextBlock Text="−" Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
+                      <TextBlock Text="{Binding StepSizeX10, Converter={StaticResource Thousands}}"
+                                 Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
+                    </StackPanel>
+                  </StackPanel>
+                </Button>
+
+                <Button Grid.Column="2" Style="{StaticResource JogButton}"
+                        Command="{Binding JogCommand}" CommandParameter="-1">
+                  <StackPanel>
+                    <TextBlock Text="‹" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"
+                               Foreground="{StaticResource TextBrush}" FontFamily="{StaticResource MonoFont}" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,0">
+                      <TextBlock Text="−" Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
+                      <TextBlock Text="{Binding StepSize, Converter={StaticResource Thousands}}"
+                                 Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
+                    </StackPanel>
+                  </StackPanel>
+                </Button>
+
+                <Button Grid.Column="4" Style="{StaticResource JogButton}"
+                        Command="{Binding JogCommand}" CommandParameter="1">
+                  <StackPanel>
+                    <TextBlock Text="›" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"
+                               Foreground="{StaticResource TextBrush}" FontFamily="{StaticResource MonoFont}" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,0">
+                      <TextBlock Text="+" Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
+                      <TextBlock Text="{Binding StepSize, Converter={StaticResource Thousands}}"
+                                 Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
+                    </StackPanel>
+                  </StackPanel>
+                </Button>
+
+                <Button Grid.Column="6" Style="{StaticResource JogButton}"
+                        Command="{Binding JogCommand}" CommandParameter="10">
+                  <StackPanel>
+                    <TextBlock Text="»" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"
+                               Foreground="{StaticResource TextBrush}" FontFamily="{StaticResource MonoFont}" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,0">
+                      <TextBlock Text="+" Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
+                      <TextBlock Text="{Binding StepSizeX10, Converter={StaticResource Thousands}}"
+                                 Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
+                    </StackPanel>
+                  </StackPanel>
+                </Button>
+              </Grid>
+            </StackPanel>
+          </Expander>
+        </DockPanel>
+      </Grid>
+      </ScrollViewer>
+
+      <!-- ==================== CONSOLE ==================== -->
+      <Border Grid.Row="2" x:Name="ConsoleRoot"
+              Background="#FF090C11"
+              BorderBrush="{StaticResource LineBrush}"
+              BorderThickness="0,1,0,0"
+              Margin="0,14,0,0"
+              Visibility="{Binding ShowConsole, Converter={StaticResource BoolToVis}}">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="170" />
+          </Grid.RowDefinitions>
+
+          <!-- Console header -->
+          <Border Grid.Row="0"
+                  Background="{StaticResource ConsoleHeaderBrush}"
+                  BorderBrush="{StaticResource LineBrush}"
+                  BorderThickness="0,0,0,1"
+                  Padding="14,8">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+
+              <StackPanel Orientation="Horizontal">
+                <Path Data="{StaticResource Icon.Console}" Style="{StaticResource HeaderIconPath}" />
+                <TextBlock Text="CONSOLE" Style="{StaticResource CardLabel}" Margin="9,0,0,0" />
+              </StackPanel>
+
+              <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <CheckBox Content="Enable" IsChecked="{Binding LogEnabled, Mode=TwoWay}" />
+                <CheckBox Content="Auto-scroll" IsChecked="{Binding LogAutoScroll, Mode=TwoWay}" Margin="14,0,0,0" />
+                <Button Style="{StaticResource XsButton}" Margin="10,0,0,0" Command="{Binding CopyLogCommand}">
+                  <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource Icon.Copy}" Style="{StaticResource ButtonIconPath}" Margin="0,0,5,0" />
+                    <TextBlock Text="Copy" />
+                  </StackPanel>
+                </Button>
+                <Button Style="{StaticResource XsButton}" Margin="6,0,0,0" Command="{Binding ClearLogCommand}">
+                  <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource Icon.Trash}" Style="{StaticResource ButtonIconPath}" Margin="0,0,5,0" />
+                    <TextBlock Text="Clear" />
+                  </StackPanel>
+                </Button>
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <!-- Console body -->
+          <ScrollViewer Grid.Row="1" x:Name="ConsoleScroller"
+                        VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Disabled"
+                        Padding="14,8" Background="#FF090C11">
+            <ItemsControl ItemsSource="{Binding LogEntries}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <StackPanel Orientation="Horizontal" Margin="0,1">
+                    <TextBlock Text="{Binding Timestamp}"
+                               Foreground="{StaticResource Text4Brush}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="12"
+                               Margin="0,0,8,0" />
+                    <TextBlock Text="["
+                               Foreground="{StaticResource Text3Brush}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="12" />
+                    <TextBlock Text="{Binding KindLabel}"
+                               Foreground="{Binding Kind, Converter={StaticResource LogKindBrush}}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="12" />
+                    <TextBlock Text="]"
+                               Foreground="{StaticResource Text3Brush}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="12"
+                               Margin="0,0,8,0" />
+                    <TextBlock Text="{Binding Message}"
+                               Foreground="{Binding Kind, Converter={StaticResource LogKindBrush}}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="12"
+                               TextWrapping="NoWrap" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+    </Grid>
+  </Border>
+</Window>

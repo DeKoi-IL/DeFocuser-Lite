@@ -89,13 +89,42 @@ constexpr auto RESULT_FOCUSER_HALT = "RESULT:FOCUSER:HALT:";
 constexpr auto COMMAND_FOCUSER_SETLIMIT = "COMMAND:FOCUSER:SETLIMIT";
 constexpr auto RESULT_FOCUSER_SETLIMIT = "RESULT:FOCUSER:SETLIMIT:";
 
+constexpr auto COMMAND_FOCUSER_SETSPEED = "COMMAND:FOCUSER:SETSPEED:";
+constexpr auto RESULT_FOCUSER_SETSPEED = "RESULT:FOCUSER:SETSPEED:";
+
+constexpr auto COMMAND_FOCUSER_GETSPEED = "COMMAND:FOCUSER:GETSPEED";
+constexpr auto RESULT_FOCUSER_GETSPEED = "RESULT:FOCUSER:GETSPEED:";
+
+constexpr auto SPEED_FAST = "FAST";
+constexpr auto SPEED_NORMAL = "NORMAL";
+constexpr auto SPEED_SLOW = "SLOW";
+
+constexpr auto COMMAND_FOCUSER_SETSTALLTHRESHOLD = "COMMAND:FOCUSER:SETSTALLTHRESHOLD:";
+constexpr auto RESULT_FOCUSER_SETSTALLTHRESHOLD = "RESULT:FOCUSER:SETSTALLTHRESHOLD:";
+
+constexpr auto COMMAND_FOCUSER_GETSTALLTHRESHOLD = "COMMAND:FOCUSER:GETSTALLTHRESHOLD";
+constexpr auto RESULT_FOCUSER_GETSTALLTHRESHOLD = "RESULT:FOCUSER:GETSTALLTHRESHOLD:";
+
+// SGTHRS register is 8-bit. Higher value = less sensitive to stall detection.
+// Slider exposes only the upper half (128-255) since values below half are
+// far too sensitive for our motor and produce constant false positives.
+constexpr uint8_t STALL_THRESHOLD_MIN = 128;
+constexpr uint8_t STALL_THRESHOLD_MAX = 255;
+constexpr uint8_t STALL_THRESHOLD_DEFAULT = 211;
+
 constexpr auto ERROR_INVALID_COMMAND = "ERROR:INVALID_COMMAND";
 
-const unsigned int EEPROM_MAGIC_NUMBER = 0x12345678;
+// Bumped twice from 0x12345678: once for speed_setting at 13,
+// once for stall_threshold at 14. Old magic -> mismatch -> full
+// re-init with defaults (no garbage read).
+const unsigned int EEPROM_MAGIC_NUMBER = 0x1234567A;
 const unsigned int EEPROM_MAGIC_NUMBER_ADDR = 0;
 const unsigned int EEPROM_POSITION_BASE_ADDR = 4;
 const unsigned int EEPROM_MAX_STEPS_BASE_ADDR = 8;
 const unsigned int EEPROM_REVERSE_BASE_ADDR = 12;
+const unsigned int EEPROM_SPEED_BASE_ADDR = 13;
+const unsigned int EEPROM_STALL_THRESHOLD_BASE_ADDR = 14;
+const unsigned int EEPROM_SIZE = 15;
 
 //-- VARIABLES ----------------------------------------------------------------
 
@@ -117,6 +146,15 @@ bool is_reverse = false;
 uint32_t position;
 uint32_t max_steps = 100000;
 
+// Speed setting: 0 = FAST (current firmware speed), 1 = NORMAL, 2 = SLOW.
+// speed_factor_x10 scales both the start and cruise step delays.
+// Higher factor = longer delay per step = slower motor.
+//   FAST   -> 10 (1.0x, current behavior)
+//   NORMAL -> 15 (1.5x, ~33% slower cruise)
+//   SLOW   -> 20 (2.0x, ~50% slower cruise)
+uint8_t speed_setting = 0;
+uint8_t speed_factor_x10 = 10;
+
 bool is_manually_jogging = false;
 bool jog_direction = false;
 int jogStartTime = 0;
@@ -133,7 +171,7 @@ uint32_t ihold      = 2;   // low hold current
 uint32_t irun       = 5;  // low run current
 uint32_t iholddelay = 4;   // small delay
 
-const uint8_t stall_guard_threshold = 211;
+uint8_t stall_guard_threshold = STALL_THRESHOLD_DEFAULT;
 uint8_t stall_counter = 0;
 int start_stall_time = 0;
 int stall_delay = -1;
@@ -150,6 +188,12 @@ uint32_t lerpClamped(uint32_t a, uint32_t b, float t);
 bool moveFocuser(long target_position);
 void haltFocuser();
 void setLimitFocuser();
+
+void applySpeedFactor();
+void sendSpeed();
+void setSpeed(String arg);
+void sendStallThreshold();
+void setStallThreshold(String arg);
 
 void setup() 
 {
@@ -198,6 +242,7 @@ void setup()
   driver.semax(2);
   driver.sedn(0b01);
 
+  // SGTHRS gets re-applied after EEPROM load below using the stored value.
   driver.SGTHRS(stall_guard_threshold);
 
   attachInterrupt(digitalPinToInterrupt(DIAG_PIN), stallInterrupt, RISING);
@@ -215,26 +260,60 @@ void setup()
 #endif
 
   unsigned int magic_number;
-  EEPROM.begin(13);
+  EEPROM.begin(EEPROM_SIZE);
   EEPROM.get(EEPROM_MAGIC_NUMBER_ADDR, magic_number);
   if (magic_number == EEPROM_MAGIC_NUMBER) {
       // The value stored in EEPROM is trustworthy...
       EEPROM.get(EEPROM_POSITION_BASE_ADDR, position);
       EEPROM.get(EEPROM_MAX_STEPS_BASE_ADDR, max_steps);
       EEPROM.get(EEPROM_REVERSE_BASE_ADDR, is_reverse);
+      EEPROM.get(EEPROM_SPEED_BASE_ADDR, speed_setting);
+      EEPROM.get(EEPROM_STALL_THRESHOLD_BASE_ADDR, stall_guard_threshold);
+
+      // Speed byte may be garbage on EEPROM that pre-dates this field.
+      // Coerce out-of-range values to FAST (default).
+      if (speed_setting > 2) {
+          speed_setting = 0;
+          EEPROM.put(EEPROM_SPEED_BASE_ADDR, speed_setting);
+          EEPROM.commit();
+      }
+      // Clamp stall threshold to allowed range.
+      if (stall_guard_threshold < STALL_THRESHOLD_MIN) {
+          stall_guard_threshold = STALL_THRESHOLD_DEFAULT;
+          EEPROM.put(EEPROM_STALL_THRESHOLD_BASE_ADDR, stall_guard_threshold);
+          EEPROM.commit();
+      }
+      applySpeedFactor();
   } else {
       // The position had never been stored in EEPROM. Initialize it to 0...
       position = 0;
       max_steps = 100000;
       is_reverse = false;
+      speed_setting = 0;
+      stall_guard_threshold = STALL_THRESHOLD_DEFAULT;
+      applySpeedFactor();
       // Store it...
       EEPROM.put(EEPROM_POSITION_BASE_ADDR, position);
       EEPROM.put(EEPROM_MAX_STEPS_BASE_ADDR, max_steps);
       EEPROM.put(EEPROM_REVERSE_BASE_ADDR, is_reverse);
+      EEPROM.put(EEPROM_SPEED_BASE_ADDR, speed_setting);
+      EEPROM.put(EEPROM_STALL_THRESHOLD_BASE_ADDR, stall_guard_threshold);
       // And mark the value as trustworthy...
       EEPROM.put(EEPROM_MAGIC_NUMBER_ADDR, EEPROM_MAGIC_NUMBER);
 
       EEPROM.commit();
+  }
+
+  // Apply persisted stall threshold (overrides setup() default).
+  driver.SGTHRS(stall_guard_threshold);
+}
+
+void applySpeedFactor()
+{
+  switch (speed_setting) {
+    case 1: speed_factor_x10 = 15; break; // NORMAL
+    case 2: speed_factor_x10 = 20; break; // SLOW
+    default: speed_factor_x10 = 10; break; // FAST
   }
 }
 
@@ -321,9 +400,17 @@ bool HandleFreeCommand(String command)
   {
     sendReverseState();
   }
-  else if (command == COMMAND_FOCUSER_ISCALIBRATING) 
+  else if (command == COMMAND_FOCUSER_ISCALIBRATING)
   {
     sendIsCalibratingState();
+  }
+  else if (command == COMMAND_FOCUSER_GETSPEED)
+  {
+    sendSpeed();
+  }
+  else if (command == COMMAND_FOCUSER_GETSTALLTHRESHOLD)
+  {
+    sendStallThreshold();
   }
   else if (command == COMMAND_FOCUSER_HALT && is_calibrating)
   {
@@ -382,11 +469,21 @@ bool HandleBlockingCommand(String command)
     Serial.print(RESULT_FOCUSER_MOVE);
     Serial.println(moveFocuser(value) ? MSG_OK : MSG_NOK);
   }
-  else if (command == COMMAND_FOCUSER_HALT) 
+  else if (command == COMMAND_FOCUSER_HALT)
   {
     haltFocuser();
   }
-  else 
+  else if (command.startsWith(COMMAND_FOCUSER_SETSPEED))
+  {
+    String arg = command.substring(strlen(COMMAND_FOCUSER_SETSPEED));
+    setSpeed(arg);
+  }
+  else if (command.startsWith(COMMAND_FOCUSER_SETSTALLTHRESHOLD))
+  {
+    String arg = command.substring(strlen(COMMAND_FOCUSER_SETSTALLTHRESHOLD));
+    setStallThreshold(arg);
+  }
+  else
   {
     return false;
   }
@@ -413,8 +510,13 @@ void step()
 
     long timeSinceStartMove = millis() - acceleration_start_time;
 
+    // Scale start + cruise delays by current speed setting.
+    // Larger factor -> longer per-step delay -> slower motor.
+    uint32_t scaledStart  = (MIN_SPEED_DELAY * speed_factor_x10) / 10;
+    uint32_t scaledCruise = (MAX_SPEED_DELAY * speed_factor_x10) / 10;
+
     // compute motor delay (noops)
-    uint32_t motorDelay = lerpClamped(MIN_SPEED_DELAY, MAX_SPEED_DELAY, timeSinceStartMove / ACCELERATION_TIME);
+    uint32_t motorDelay = lerpClamped(scaledStart, scaledCruise, timeSinceStartMove / ACCELERATION_TIME);
 
     digitalWrite(STEP_PIN, HIGH);
     for (volatile int i = 0; i < motorDelay; i++) { asm volatile("nop"); } // 1000 = ~2-3µs
@@ -595,10 +697,67 @@ void sendReverseState()
     Serial.println(is_reverse == 1 ? TRUE : FALSE);
 }
 
-void sendIsCalibratingState() 
+void sendIsCalibratingState()
 {
     Serial.print(RESULT_FOCUSER_ISCALIBRATING);
     Serial.println(is_calibrating == 1 ? TRUE : FALSE);
+}
+
+void sendSpeed()
+{
+    Serial.print(RESULT_FOCUSER_GETSPEED);
+    switch (speed_setting) {
+      case 1: Serial.println(SPEED_NORMAL); break;
+      case 2: Serial.println(SPEED_SLOW); break;
+      default: Serial.println(SPEED_FAST); break;
+    }
+}
+
+void setSpeed(String arg)
+{
+    Serial.print(RESULT_FOCUSER_SETSPEED);
+
+    uint8_t requested;
+    if (arg == SPEED_FAST)        requested = 0;
+    else if (arg == SPEED_NORMAL) requested = 1;
+    else if (arg == SPEED_SLOW)   requested = 2;
+    else { Serial.println(MSG_NOK); return; }
+
+    if (requested != speed_setting) {
+        speed_setting = requested;
+        applySpeedFactor();
+        EEPROM.put(EEPROM_SPEED_BASE_ADDR, speed_setting);
+        EEPROM.commit();
+    }
+
+    Serial.println(MSG_OK);
+}
+
+void sendStallThreshold()
+{
+    Serial.print(RESULT_FOCUSER_GETSTALLTHRESHOLD);
+    Serial.println(stall_guard_threshold);
+}
+
+void setStallThreshold(String arg)
+{
+    Serial.print(RESULT_FOCUSER_SETSTALLTHRESHOLD);
+
+    long parsed = arg.toInt();
+    if (arg.length() == 0 || parsed < STALL_THRESHOLD_MIN || parsed > STALL_THRESHOLD_MAX) {
+        Serial.println(MSG_NOK);
+        return;
+    }
+
+    uint8_t value = static_cast<uint8_t>(parsed);
+    if (value != stall_guard_threshold) {
+        stall_guard_threshold = value;
+        driver.SGTHRS(stall_guard_threshold);
+        EEPROM.put(EEPROM_STALL_THRESHOLD_BASE_ADDR, stall_guard_threshold);
+        EEPROM.commit();
+    }
+
+    Serial.println(MSG_OK);
 }
 
 void sendFocuserPosition() 

@@ -1,0 +1,26 @@
+<Application x:Class="ASCOM.DeKoi.DeFocuserApp.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:ASCOM.DeKoi.DeFocuserApp.ViewModels"
+             ShutdownMode="OnExplicitShutdown"
+             StartupUri="MainWindow.xaml">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Themes/Theme.xaml" />
+        <ResourceDictionary Source="Themes/Icons.xaml" />
+        <ResourceDictionary Source="Themes/Controls.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <vm:BoolToVisibilityConverter x:Key="BoolToVis" />
+      <vm:BoolToVisibilityConverter x:Key="BoolToVisInverted" TrueValue="Collapsed" FalseValue="Visible" />
+      <vm:BoolToInvertedBoolConverter x:Key="InvertBool" />
+      <vm:StringEqualsConverter x:Key="StringEquals" />
+      <vm:IntEqualsConverter x:Key="IntEquals" />
+      <vm:LogKindToBrushConverter x:Key="LogKindBrush" />
+      <vm:PercentageConverter x:Key="Percentage" />
+      <vm:ThousandsConverter x:Key="Thousands" />
+      <vm:HexToBrushConverter x:Key="HexToBrush" />
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>
