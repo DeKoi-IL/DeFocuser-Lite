@@ -21,7 +21,7 @@ param(
     [ValidatePattern('^\d+\.\d+\.\d+(\.\d+)?$')]
     [string]$Version,
 
-    [string]$OutputDir = "Output",
+    [string]$OutputDir = "Installer",
 
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
@@ -38,8 +38,8 @@ $AssemblyVersion = if ($Version.Split('.').Count -eq 3) { "$Version.0" } else { 
 $InnoVersion = ($AssemblyVersion -replace '\.0$', '')
 
 $Driver = Join-Path $RepoRoot 'Code\ASCOM_Driver\ASCOM.DeKoi.DeFocuserLite.csproj'
-$App    = Join-Path $RepoRoot 'AppV2\ASCOM.DeKoi.DeFocuserApp.csproj'
-$Iss    = Join-Path $RepoRoot 'AppV2\Installer\Setup.iss'
+$App    = Join-Path $RepoRoot 'Code\FocuserApp\ASCOM.DeKoi.DeFocuserApp.csproj'
+$Iss    = Join-Path $RepoRoot 'Code\FocuserApp\Installer\Setup.iss'
 
 $OutputPath = if ([System.IO.Path]::IsPathRooted($OutputDir)) { $OutputDir } else { Join-Path $RepoRoot $OutputDir }
 
@@ -131,7 +131,7 @@ Write-Host ""
 
 # 1. Patch versions
 Write-Host "[1/4] Patching AssemblyInfo files"
-Update-AssemblyInfo -Path (Join-Path $RepoRoot 'AppV2\Properties\AssemblyInfo.cs')           -NewVersion $AssemblyVersion
+Update-AssemblyInfo -Path (Join-Path $RepoRoot 'Code\FocuserApp\Properties\AssemblyInfo.cs')   -NewVersion $AssemblyVersion
 Update-AssemblyInfo -Path (Join-Path $RepoRoot 'Code\ASCOM_Driver\Properties\AssemblyInfo.cs') -NewVersion $AssemblyVersion
 
 # 2. Build driver + app
@@ -145,7 +145,7 @@ if ($SkipBuild) {
 
 # 3. Sanity-check expected outputs
 $expectedDll = Join-Path $RepoRoot "Code\ASCOM_Driver\bin\$Configuration\ASCOM.DeKoi.DeFocuserLite.dll"
-$expectedExe = Join-Path $RepoRoot "AppV2\bin\x64\$Configuration\ASCOM.DeKoi.DeFocuserApp.exe"
+$expectedExe = Join-Path $RepoRoot "Code\FocuserApp\bin\x64\$Configuration\ASCOM.DeKoi.DeFocuserApp.exe"
 foreach ($f in @($expectedDll, $expectedExe)) {
     if (-not (Test-Path -LiteralPath $f)) { throw "Build artifact missing: $f" }
 }
