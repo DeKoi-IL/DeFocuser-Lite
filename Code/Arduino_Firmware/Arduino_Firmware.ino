@@ -168,7 +168,7 @@ uint32_t outmost_position;
 long acceleration_start_time = 0;
 
 uint32_t ihold      = 2;   // low hold current
-uint32_t irun       = 5;  // low run current
+uint32_t irun       = 31; // full run current scale
 uint32_t iholddelay = 4;   // small delay
 
 uint8_t stall_guard_threshold = STALL_THRESHOLD_DEFAULT;
