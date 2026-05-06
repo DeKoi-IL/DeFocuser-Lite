@@ -57,7 +57,7 @@ namespace ASCOM.DeKoi
 
         // Named pipe constants
         private const string PIPE_NAME = "DeFocuserLitePipe";
-        private const string MEDIATOR_PROCESS_NAME = "ASCOM.DeKoi.DeFocuserMediator";
+        private const string MEDIATOR_PROCESS_NAME = "ASCOM.DeKoi.DeFocuserApp";
 
         // Protocol constants (same as serial protocol)
         private const string OK = "OK";
