@@ -45,7 +45,7 @@ $Iss          = Join-Path $RepoRoot 'Code\FocuserApp\Installer\Setup.iss'
 $FirmwareDir  = Join-Path $RepoRoot 'Code\Arduino_Firmware'
 $FirmwareIno  = Join-Path $FirmwareDir 'Arduino_Firmware.ino'
 $FirmwareBuildDir = Join-Path $RepoRoot 'build\firmware'
-$FirmwareFqbn = 'esp32:esp32:esp32c3'
+$FirmwareFqbn = 'esp32:esp32:XIAO_ESP32C3'
 
 $OutputPath = if ([System.IO.Path]::IsPathRooted($OutputDir)) { $OutputDir } else { Join-Path $RepoRoot $OutputDir }
 

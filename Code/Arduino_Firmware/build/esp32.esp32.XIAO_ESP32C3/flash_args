@@ -1,0 +1,5 @@
+--flash-mode dio --flash-freq 80m --flash-size 4MB  
+0x0 Arduino_Firmware.ino.bootloader.bin  
+0x8000 Arduino_Firmware.ino.partitions.bin  
+0xe000 boot_app0.bin  
+0x10000 Arduino_Firmware.ino.bin 

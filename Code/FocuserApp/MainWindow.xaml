@@ -80,31 +80,15 @@
           <!-- Update badge + settings gear -->
           <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
             <Button x:Name="UpdateButton"
+                    Style="{StaticResource PrimaryButton}"
+                    Height="28" Padding="10,0"
                     Click="UpdateButton_Click"
-                    Cursor="Hand"
-                    Padding="10,4"
-                    BorderThickness="1"
-                    Background="{StaticResource AccentSoftBrush}"
-                    BorderBrush="{StaticResource AccentLineBrush}"
-                    Foreground="{StaticResource AccentBrush}"
                     Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVis}}"
                     ToolTip="A new version is available — click to install">
-              <Button.Template>
-                <ControlTemplate TargetType="Button">
-                  <Border Background="{TemplateBinding Background}"
-                          BorderBrush="{TemplateBinding BorderBrush}"
-                          BorderThickness="{TemplateBinding BorderThickness}"
-                          CornerRadius="999"
-                          Padding="{TemplateBinding Padding}"
-                          SnapsToDevicePixels="True">
-                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                  </Border>
-                </ControlTemplate>
-              </Button.Template>
               <StackPanel Orientation="Horizontal">
-                <Ellipse Width="7" Height="7" Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+                <Path Data="{StaticResource Icon.Download}" Style="{StaticResource ButtonIconPath}"
+                      Stroke="White" Margin="0,0,7,0" />
                 <TextBlock Text="{Binding UpdateBadgeText}"
-                           Margin="7,0,0,0"
                            FontSize="11.5" FontWeight="Medium"
                            VerticalAlignment="Center" />
               </StackPanel>

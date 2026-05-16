@@ -1080,7 +1080,6 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                 {
                     var current = SerialPort.GetPortNames();
                     if (current.Contains(preferredPort)) break;
-                    // Or any new port appeared that wasn't there before — that's our device.
                     if (current.Except(portsAtStart).Any()) break;
                 }
                 catch { }
@@ -1088,20 +1087,13 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
 
             uiDispatcher.Invoke(() => RefreshPorts());
 
-            // Try preferred port first
             if (AvailablePorts.Contains(preferredPort))
             {
                 Log(LogKind.Info, "Reconnecting to " + preferredPort);
                 SelectedPort = preferredPort;
                 AutoDetect = false;
                 await ConnectAsync();
-                if (isConnected) return;
             }
-
-            // Fall back: auto-detect across all current ports
-            Log(LogKind.Warn, preferredPort + " did not respond — trying auto-detect");
-            AutoDetect = true;
-            await ConnectAsync();
 
             if (!isConnected)
             {
@@ -1176,10 +1168,6 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
 
                 if (wasConnected)
                 {
-                    // ESP32-C3 native USB drops + re-enumerates after reboot.
-                    // Port name often changes. Poll port list until the
-                    // device reappears, then try original port first; if
-                    // that fails, fall back to auto-detect across all ports.
                     await ReconnectAfterFlashAsync(port, ct);
                 }
 

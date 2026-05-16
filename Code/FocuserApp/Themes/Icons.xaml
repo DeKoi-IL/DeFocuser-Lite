@@ -23,4 +23,5 @@
   <Geometry x:Key="Icon.Max">M 2 2 L 9 2 L 9 9 L 2 9 Z</Geometry>
   <Geometry x:Key="Icon.X">M 2 2 L 9 9 M 9 2 L 2 9</Geometry>
   <Geometry x:Key="Icon.Check">M 2 6 L 5 9 L 11 3</Geometry>
+  <Geometry x:Key="Icon.Download">M 8 2 L 8 10 M 4.5 7 L 8 10.5 L 11.5 7 M 3 13 L 13 13</Geometry>
 </ResourceDictionary>
