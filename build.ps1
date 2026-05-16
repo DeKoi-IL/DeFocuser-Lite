@@ -238,6 +238,13 @@ if ($SkipBuild) {
             Write-Host "  cleaned $dir"
         }
     }
+
+    # Also drop the parent build/ folder at the repo root if it's empty now.
+    $rootBuild = Join-Path $RepoRoot 'build'
+    if ((Test-Path -LiteralPath $rootBuild) -and -not (Get-ChildItem -LiteralPath $rootBuild -Force)) {
+        Remove-Item -LiteralPath $rootBuild -Force
+        Write-Host "  cleaned $rootBuild"
+    }
 }
 
 # 5. Compile installer (ISCC /O overrides [Setup] OutputDir, /F overrides OutputBaseFilename)
