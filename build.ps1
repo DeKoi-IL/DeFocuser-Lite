@@ -229,6 +229,15 @@ if ($SkipBuild) {
 
     Copy-Item -LiteralPath $mergedBin.FullName -Destination $FirmwareBinDest -Force
     Write-Host "  firmware -> $FirmwareBinDest"
+
+    # Clean both build caches (central output-dir and the cache arduino-cli
+    # drops next to the .ino) now that the artifact is safely in Installer/.
+    foreach ($dir in @($FirmwareBuildDir, (Join-Path $FirmwareDir 'build'))) {
+        if (Test-Path -LiteralPath $dir) {
+            Remove-Item -LiteralPath $dir -Recurse -Force
+            Write-Host "  cleaned $dir"
+        }
+    }
 }
 
 # 5. Compile installer (ISCC /O overrides [Setup] OutputDir, /F overrides OutputBaseFilename)
