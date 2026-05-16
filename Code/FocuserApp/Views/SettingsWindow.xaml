@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings"
-        Width="520" Height="520"
-        MinWidth="420" MinHeight="380"
+        Width="640" Height="560"
+        MinWidth="520" MinHeight="420"
         WindowStartupLocation="CenterOwner"
         WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" ResizeMode="CanResize" ShowInTaskbar="False"
@@ -80,21 +80,19 @@
               <!-- Hub row -->
               <Grid Margin="0,0,0,10">
                 <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="120" />
-                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="100" />
+                  <ColumnDefinition Width="*" MinWidth="120" />
                   <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="Hub app" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Installed " Foreground="{StaticResource Text3Brush}" />
-                    <TextBlock Text="{Binding HubVersionDisplay}" Foreground="{StaticResource TextBrush}"
-                               FontFamily="{StaticResource MonoFont}" />
-                    <TextBlock Text=" · Latest " Foreground="{StaticResource Text3Brush}" Margin="6,0,0,0" />
-                    <TextBlock Text="{Binding LatestHubVersionDisplay}" Foreground="{StaticResource TextBrush}"
-                               FontFamily="{StaticResource MonoFont}" />
-                  </StackPanel>
-                </StackPanel>
+                <WrapPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                  <TextBlock Text="Installed " Foreground="{StaticResource Text3Brush}" />
+                  <TextBlock Text="{Binding HubVersionDisplay}" Foreground="{StaticResource TextBrush}"
+                             FontFamily="{StaticResource MonoFont}" />
+                  <TextBlock Text=" · Latest " Foreground="{StaticResource Text3Brush}" />
+                  <TextBlock Text="{Binding LatestHubVersionDisplay}" Foreground="{StaticResource TextBrush}"
+                             FontFamily="{StaticResource MonoFont}" />
+                </WrapPanel>
                 <Button Grid.Column="2" Style="{StaticResource PrimaryButton}"
                         Content="Install update"
                         Command="{Binding InstallUpdateCommand}"
@@ -104,21 +102,19 @@
               <!-- Firmware row -->
               <Grid Margin="0,0,0,10">
                 <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="120" />
-                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="100" />
+                  <ColumnDefinition Width="*" MinWidth="120" />
                   <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="Firmware" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Device " Foreground="{StaticResource Text3Brush}" />
-                    <TextBlock Text="{Binding FirmwareVersionDisplay}" Foreground="{StaticResource TextBrush}"
-                               FontFamily="{StaticResource MonoFont}" />
-                    <TextBlock Text=" · Latest " Foreground="{StaticResource Text3Brush}" Margin="6,0,0,0" />
-                    <TextBlock Text="{Binding LatestFirmwareVersionDisplay}" Foreground="{StaticResource TextBrush}"
-                               FontFamily="{StaticResource MonoFont}" />
-                  </StackPanel>
-                </StackPanel>
+                <WrapPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                  <TextBlock Text="Device " Foreground="{StaticResource Text3Brush}" />
+                  <TextBlock Text="{Binding FirmwareVersionDisplay}" Foreground="{StaticResource TextBrush}"
+                             FontFamily="{StaticResource MonoFont}" />
+                  <TextBlock Text=" · Latest " Foreground="{StaticResource Text3Brush}" />
+                  <TextBlock Text="{Binding LatestFirmwareVersionDisplay}" Foreground="{StaticResource TextBrush}"
+                             FontFamily="{StaticResource MonoFont}" />
+                </WrapPanel>
                 <Button Grid.Column="2" Style="{StaticResource SmButton}"
                         Content="Update firmware"
                         Command="{Binding FlashFirmwareCommand}"

@@ -107,16 +107,20 @@ namespace ASCOM.DeKoi.DeFocuserApp.Services
 
         private static bool IsHubInstaller(string name)
         {
-            // Pattern: "DeKoi DeFocuser Lite Setup-2.0.7.exe"
-            return name.StartsWith("DeKoi DeFocuser Lite Setup-", StringComparison.OrdinalIgnoreCase)
-                   && name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+            // GitHub sometimes rewrites spaces in uploaded asset names to dots
+            // ("DeKoi DeFocuser Lite Setup-2.1.3.exe" -> "DeKoi.DeFocuser.Lite.Setup-2.1.3.exe").
+            // Match any .exe whose name contains both "DeFocuser" and "Setup".
+            if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return false;
+            return name.IndexOf("DeFocuser", StringComparison.OrdinalIgnoreCase) >= 0
+                   && name.IndexOf("Setup", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static bool IsFirmwareBin(string name)
         {
             // Pattern: "DeFocuser-Lite-Firmware-2.0.7-esp32c3.bin"
-            return name.StartsWith("DeFocuser-Lite-Firmware-", StringComparison.OrdinalIgnoreCase)
-                   && name.EndsWith(".bin", StringComparison.OrdinalIgnoreCase);
+            if (!name.EndsWith(".bin", StringComparison.OrdinalIgnoreCase)) return false;
+            return name.IndexOf("Firmware", StringComparison.OrdinalIgnoreCase) >= 0
+                   && name.IndexOf("DeFocuser", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static Version ParseTag(string tag)

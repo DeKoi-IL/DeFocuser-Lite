@@ -23,43 +23,6 @@
     <WindowChrome CaptionHeight="0" GlassFrameThickness="0" CornerRadius="0" ResizeBorderThickness="6" />
   </WindowChrome.WindowChrome>
 
-  <Window.Resources>
-    <Style x:Key="WinIconPath" TargetType="Path">
-      <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-      <Setter Property="StrokeThickness" Value="1.4" />
-      <Setter Property="StrokeStartLineCap" Value="Round" />
-      <Setter Property="StrokeEndLineCap" Value="Round" />
-      <Setter Property="StrokeLineJoin" Value="Round" />
-      <Setter Property="Stretch" Value="None" />
-      <Setter Property="HorizontalAlignment" Value="Center" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-    </Style>
-
-    <Style x:Key="HeaderIconPath" TargetType="Path">
-      <Setter Property="Stroke" Value="{StaticResource AccentBrush}" />
-      <Setter Property="StrokeThickness" Value="1.6" />
-      <Setter Property="StrokeStartLineCap" Value="Round" />
-      <Setter Property="StrokeEndLineCap" Value="Round" />
-      <Setter Property="StrokeLineJoin" Value="Round" />
-      <Setter Property="Stretch" Value="None" />
-      <Setter Property="Width" Value="16" />
-      <Setter Property="Height" Value="16" />
-      <Setter Property="HorizontalAlignment" Value="Center" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-    </Style>
-
-    <Style x:Key="ButtonIconPath" TargetType="Path" BasedOn="{StaticResource HeaderIconPath}">
-      <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-      <Setter Property="Width" Value="13" />
-      <Setter Property="Height" Value="13" />
-    </Style>
-
-    <Style x:Key="StatusDot" TargetType="Ellipse">
-      <Setter Property="Width" Value="7" />
-      <Setter Property="Height" Value="7" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-    </Style>
-  </Window.Resources>
 
   <!-- Outer shell with rounded corners + drop shadow -->
   <Border Background="{StaticResource WindowBackgroundBrush}"
@@ -145,6 +108,11 @@
                            FontSize="11.5" FontWeight="Medium"
                            VerticalAlignment="Center" />
               </StackPanel>
+            </Button>
+            <Button Style="{StaticResource WindowControlButton}"
+                    Command="{Binding ToggleConsoleCommand}"
+                    ToolTip="Toggle console" Margin="6,0,0,0">
+              <Path Data="{StaticResource Icon.Console}" Style="{StaticResource WinIconPath}" Width="13" Height="13" />
             </Button>
             <Button Style="{StaticResource WindowControlButton}" Click="SettingsButton_Click" ToolTip="Settings" Margin="6,0,0,0">
               <Path Data="{StaticResource Icon.Cog}" Style="{StaticResource WinIconPath}" Width="13" Height="13" />
@@ -738,6 +706,7 @@
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="170" />
+            <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
 
           <!-- Console header -->
@@ -781,10 +750,24 @@
                         VerticalScrollBarVisibility="Auto"
                         HorizontalScrollBarVisibility="Disabled"
                         Padding="14,8" Background="#FF090C11">
-            <ItemsControl ItemsSource="{Binding LogEntries}">
+            <ItemsControl x:Name="LogList" ItemsSource="{Binding LogEntries}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                  <StackPanel Orientation="Horizontal" Margin="0,1">
+                  <StackPanel Orientation="Horizontal" Margin="0,1" Background="Transparent"
+                              Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                    <StackPanel.ContextMenu>
+                      <ContextMenu>
+                        <MenuItem Header="Copy line"
+                                  Command="{Binding PlacementTarget.Tag.CopyLineCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                        <MenuItem Header="Copy message"
+                                  Command="{Binding PlacementTarget.Tag.CopyLineMessageCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                        <Separator />
+                        <MenuItem Header="Copy all"
+                                  Command="{Binding PlacementTarget.Tag.CopyLogCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                      </ContextMenu>
+                    </StackPanel.ContextMenu>
                     <TextBlock Text="{Binding Timestamp}"
                                Foreground="{StaticResource Text4Brush}"
                                FontFamily="{StaticResource MonoFont}" FontSize="12"
@@ -808,6 +791,40 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
           </ScrollViewer>
+
+          <!-- Manual command input -->
+          <Border Grid.Row="2"
+                  Background="{StaticResource ConsoleHeaderBrush}"
+                  BorderBrush="{StaticResource LineBrush}"
+                  BorderThickness="0,1,0,0"
+                  Padding="14,8">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Text="&gt;"
+                         Foreground="{StaticResource AccentBrush}"
+                         FontFamily="{StaticResource MonoFont}" FontSize="13" FontWeight="Bold"
+                         VerticalAlignment="Center" Margin="0,0,8,0" />
+              <TextBox Grid.Column="1"
+                       x:Name="ManualCommandBox"
+                       Text="{Binding ManualCommandText, UpdateSourceTrigger=PropertyChanged}"
+                       Background="Transparent"
+                       Foreground="{StaticResource TextBrush}"
+                       CaretBrush="{StaticResource TextBrush}"
+                       BorderThickness="0"
+                       FontFamily="{StaticResource MonoFont}" FontSize="12"
+                       VerticalAlignment="Center"
+                       IsEnabled="{Binding IsConnected}"
+                       KeyDown="ManualCommandBox_KeyDown"
+                       ToolTip="Send a raw command to the focuser (e.g. COMMAND:PING)" />
+              <Button Grid.Column="2" Style="{StaticResource XsButton}" Margin="8,0,0,0"
+                      Command="{Binding SendManualCommand}"
+                      Content="Send" />
+            </Grid>
+          </Border>
         </Grid>
       </Border>
     </Grid>

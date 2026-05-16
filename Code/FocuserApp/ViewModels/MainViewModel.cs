@@ -175,7 +175,7 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             }
         }
 
-        private string speed = "Fast";
+        private string speed = "Normal";
         public string Speed
         {
             get => speed;
@@ -287,46 +287,54 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         private bool logAutoScroll = true;
         public bool LogAutoScroll { get => logAutoScroll; set => SetField(ref logAutoScroll, value); }
 
+        // Toggling these persists immediately so the layout survives crashes,
+        // task-manager kills, or USB power loss — not just clean exits.
         private bool connectionExpanded = true;
         public bool ConnectionExpanded
         {
             get => connectionExpanded;
-            set { if (SetField(ref connectionExpanded, value)) Settings.Default.ConnectionExpanded = value; }
+            set { if (SetField(ref connectionExpanded, value)) PersistSetting(() => Settings.Default.ConnectionExpanded = value); }
         }
 
         private bool settingsExpanded = true;
         public bool SettingsExpanded
         {
             get => settingsExpanded;
-            set { if (SetField(ref settingsExpanded, value)) Settings.Default.SettingsExpanded = value; }
+            set { if (SetField(ref settingsExpanded, value)) PersistSetting(() => Settings.Default.SettingsExpanded = value); }
         }
 
         private bool positionExpanded = true;
         public bool PositionExpanded
         {
             get => positionExpanded;
-            set { if (SetField(ref positionExpanded, value)) Settings.Default.PositionExpanded = value; }
+            set { if (SetField(ref positionExpanded, value)) PersistSetting(() => Settings.Default.PositionExpanded = value); }
         }
 
         private bool movementExpanded = true;
         public bool MovementExpanded
         {
             get => movementExpanded;
-            set { if (SetField(ref movementExpanded, value)) Settings.Default.MovementExpanded = value; }
+            set { if (SetField(ref movementExpanded, value)) PersistSetting(() => Settings.Default.MovementExpanded = value); }
         }
 
         private bool showProgress = true;
         public bool ShowProgress
         {
             get => showProgress;
-            set { if (SetField(ref showProgress, value)) Settings.Default.ShowProgress = value; }
+            set { if (SetField(ref showProgress, value)) PersistSetting(() => Settings.Default.ShowProgress = value); }
         }
 
         private bool showConsole = true;
         public bool ShowConsole
         {
             get => showConsole;
-            set { if (SetField(ref showConsole, value)) Settings.Default.ShowConsole = value; }
+            set { if (SetField(ref showConsole, value)) PersistSetting(() => Settings.Default.ShowConsole = value); }
+        }
+
+        private static void PersistSetting(Action apply)
+        {
+            try { apply(); Settings.Default.Save(); }
+            catch { /* user.config IO errors are non-fatal */ }
         }
 
         // ---- Update state (hub + firmware) ----
@@ -376,7 +384,9 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             get
             {
                 if (updateInfo == null || !updateInfo.HubAvailable) return string.Empty;
-                return "Update " + (updateInfo.LatestVersion != null ? "v" + updateInfo.LatestVersion : "available");
+                return updateInfo.LatestVersion != null
+                    ? "Update Available v" + updateInfo.LatestVersion
+                    : "Update Available";
             }
         }
 
@@ -456,6 +466,21 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         public RelayCommand SetLimitCommand { get; }
         public RelayCommand ClearLogCommand { get; }
         public RelayCommand CopyLogCommand { get; }
+        public RelayCommand CopyLineCommand { get; }
+        public RelayCommand CopyLineMessageCommand { get; }
+        public RelayCommand SendManualCommand { get; }
+        public RelayCommand ToggleConsoleCommand { get; }
+
+        private string manualCommandText;
+        public string ManualCommandText
+        {
+            get => manualCommandText;
+            set
+            {
+                if (SetField(ref manualCommandText, value))
+                    System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+            }
+        }
         public RelayCommand TargetIncrementCommand { get; }
         public RelayCommand TargetDecrementCommand { get; }
 
@@ -485,6 +510,12 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             SetLimitCommand = new RelayCommand(_ => SetLimit(), _ => isConnected && isCalibrating);
             ClearLogCommand = new RelayCommand(_ => ClearLog());
             CopyLogCommand = new RelayCommand(_ => CopyLog());
+            CopyLineCommand = new RelayCommand(p => CopyLine(p as LogEntry, includeMeta: true));
+            CopyLineMessageCommand = new RelayCommand(p => CopyLine(p as LogEntry, includeMeta: false));
+            SendManualCommand = new RelayCommand(
+                _ => SendManualAsync().ConfigureAwait(false),
+                _ => isConnected && !string.IsNullOrWhiteSpace(manualCommandText));
+            ToggleConsoleCommand = new RelayCommand(_ => ShowConsole = !ShowConsole);
             TargetIncrementCommand = new RelayCommand(_ => Target = Math.Min(maxPosition <= 0 ? int.MaxValue : maxPosition, target + stepSize));
             TargetDecrementCommand = new RelayCommand(_ => Target = Math.Max(0, target - stepSize));
 
@@ -709,12 +740,12 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
 
         private static string NormalizeSpeed(string raw)
         {
-            if (string.IsNullOrWhiteSpace(raw)) return "Fast";
+            if (string.IsNullOrWhiteSpace(raw)) return "Normal";
             string u = raw.Trim().ToUpperInvariant();
             if (u == "FAST") return "Fast";
             if (u == "NORMAL") return "Normal";
             if (u == "SLOW") return "Slow";
-            return "Fast";
+            return "Normal";
         }
 
         private void PollDevice()
@@ -939,6 +970,46 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             }
         }
 
+        private async Task SendManualAsync()
+        {
+            if (!isConnected) return;
+            string cmd = (manualCommandText ?? string.Empty).Trim();
+            if (cmd.Length == 0) return;
+
+            try
+            {
+                string response = await Task.Run(() => serial.SendRawCommand(cmd));
+                // Serial.SerialTraffic already logs Tx + Rx via OnSerialTraffic,
+                // so we don't double-log here.
+                _ = response;
+            }
+            catch (Exception ex)
+            {
+                Log(LogKind.Err, "Manual command failed: " + ex.Message);
+            }
+            finally
+            {
+                ManualCommandText = string.Empty;
+            }
+        }
+
+        private void CopyLine(LogEntry entry, bool includeMeta)
+        {
+            if (entry == null) return;
+            try
+            {
+                string text = includeMeta
+                    ? entry.Timestamp + " [" + entry.KindLabel + "] " + entry.Message
+                    : entry.Message;
+                if (!string.IsNullOrEmpty(text))
+                    Clipboard.SetText(text);
+            }
+            catch (Exception ex)
+            {
+                Log(LogKind.Err, "Copy line failed: " + ex.Message);
+            }
+        }
+
         public void Log(LogKind kind, string message)
         {
             if (!logEnabled) return;
@@ -987,6 +1058,57 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         public bool HasAscomClients => pipes.ConnectedClientCount > 0;
         public int AscomClientCount => pipes.ConnectedClientCount;
 
+        private async Task ReconnectAfterFlashAsync(string preferredPort, CancellationToken ct)
+        {
+            Log(LogKind.Info, "Waiting for device to re-enumerate...");
+
+            // Give USB ~6s total to re-enumerate. Refresh port list each tick.
+            const int totalMs = 6000;
+            const int stepMs = 500;
+            int waited = 0;
+
+            string[] portsAtStart;
+            try { portsAtStart = SerialPort.GetPortNames(); }
+            catch { portsAtStart = new string[0]; }
+
+            while (waited < totalMs)
+            {
+                await Task.Delay(stepMs, ct);
+                waited += stepMs;
+
+                try
+                {
+                    var current = SerialPort.GetPortNames();
+                    if (current.Contains(preferredPort)) break;
+                    // Or any new port appeared that wasn't there before — that's our device.
+                    if (current.Except(portsAtStart).Any()) break;
+                }
+                catch { }
+            }
+
+            uiDispatcher.Invoke(() => RefreshPorts());
+
+            // Try preferred port first
+            if (AvailablePorts.Contains(preferredPort))
+            {
+                Log(LogKind.Info, "Reconnecting to " + preferredPort);
+                SelectedPort = preferredPort;
+                AutoDetect = false;
+                await ConnectAsync();
+                if (isConnected) return;
+            }
+
+            // Fall back: auto-detect across all current ports
+            Log(LogKind.Warn, preferredPort + " did not respond — trying auto-detect");
+            AutoDetect = true;
+            await ConnectAsync();
+
+            if (!isConnected)
+            {
+                Log(LogKind.Err, "Reconnect failed. Unplug + replug the device, then click Connect.");
+            }
+        }
+
         // Flashes the ESP32-C3 over the same serial port the hub uses. The hub
         // must release the port for esptool — caller should have warned the
         // user about any connected ASCOM clients before calling.
@@ -1000,8 +1122,17 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             string esptool = FirmwareFlasher.ResolveEsptoolPath();
             if (esptool == null)
             {
-                Log(LogKind.Err, "esptool.exe not found. Reinstall the hub to restore it.");
-                return false;
+                try
+                {
+                    esptool = await FirmwareFlasher.EnsureEsptoolAsync(
+                        msg => Log(LogKind.Info, msg), CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    Log(LogKind.Err, "esptool fetch failed: " + ex.Message
+                        + " — drop esptool.exe at " + FirmwareFlasher.LocalCachePath());
+                    return false;
+                }
             }
 
             string port = serial.ConnectedPortName ?? Settings.Default.LastComPort;
@@ -1037,7 +1168,6 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                 if (ok)
                 {
                     Log(LogKind.Ok, "Flash complete. Waiting for chip reboot...");
-                    await Task.Delay(2000, ct);
                 }
                 else
                 {
@@ -1046,10 +1176,11 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
 
                 if (wasConnected)
                 {
-                    Log(LogKind.Info, "Reconnecting to " + port);
-                    SelectedPort = port;
-                    AutoDetect = false;
-                    await ConnectAsync();
+                    // ESP32-C3 native USB drops + re-enumerates after reboot.
+                    // Port name often changes. Poll port list until the
+                    // device reappears, then try original port first; if
+                    // that fails, fall back to auto-detect across all ports.
+                    await ReconnectAfterFlashAsync(port, ct);
                 }
 
                 return ok;
