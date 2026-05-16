@@ -5,10 +5,13 @@
  */
 
 using ASCOM.DeKoi.DeFocuserApp.Properties;
+using ASCOM.DeKoi.DeFocuserApp.Services;
 using ASCOM.DeKoi.DeFocuserApp.ViewModels;
+using ASCOM.DeKoi.DeFocuserApp.Views;
 
 using System;
 using System.ComponentModel;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Input;
@@ -47,6 +50,46 @@ namespace ASCOM.DeKoi.DeFocuserApp
         {
             UpdateProgressFill();
             vm.TryAutoConnectOnStartup();
+            _ = CheckForUpdatesOnStartupAsync();
+        }
+
+        private async Task CheckForUpdatesOnStartupAsync()
+        {
+            try
+            {
+                var info = await UpdateChecker.CheckAsync();
+                if (info == null) return;
+
+                Settings.Default.LastUpdateCheckTime = DateTime.UtcNow;
+                Settings.Default.Save();
+
+                Dispatcher.Invoke(() => {
+                    vm.SetUpdateInfo(info);
+                    // Diagnostic so the user can see why no badge appeared.
+                    string current = info.CurrentVersion?.ToString() ?? "?";
+                    string latest = info.LatestVersion?.ToString() ?? "?";
+                    if (info.HubAvailable)
+                    {
+                        vm.Log(LogKind.Info, "Update check: current v" + current + ", latest v" + latest + " (badge shown)");
+                    }
+                    else if (info.LatestVersion == null)
+                    {
+                        vm.Log(LogKind.Warn, "Update check: no parseable release tag found.");
+                    }
+                    else if (info.HubInstallerUrl == null)
+                    {
+                        vm.Log(LogKind.Warn, "Update check: latest v" + latest + " has no installer asset matching DeFocuser+Setup+.exe pattern.");
+                    }
+                    else
+                    {
+                        vm.Log(LogKind.Info, "Update check: up to date (current v" + current + ", latest v" + latest + ")");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Dispatcher.Invoke(() => vm.Log(LogKind.Warn, "Update check failed: " + ex.Message));
+            }
         }
 
         private void Vm_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -112,6 +155,48 @@ namespace ASCOM.DeKoi.DeFocuserApp
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void UpdateButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (vm.UpdateInfo == null) return;
+            try
+            {
+                var dlg = new UpdateDialog(vm, vm.UpdateInfo) { Owner = this };
+                dlg.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                vm.Log(LogKind.Err, "Open update dialog failed: " + ex);
+                MessageBox.Show(this, ex.ToString(), "Update dialog error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ManualCommandBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter
+                && vm.SendManualCommand.CanExecute(null))
+            {
+                vm.SendManualCommand.Execute(null);
+                e.Handled = true;
+            }
+        }
+
+        private void SettingsButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var settingsVm = new SettingsViewModel(vm);
+                var dlg = new SettingsWindow(settingsVm) { Owner = this };
+                dlg.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                vm.Log(LogKind.Err, "Open settings failed: " + ex);
+                MessageBox.Show(this, ex.ToString(), "Settings error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void ToggleMaximize()

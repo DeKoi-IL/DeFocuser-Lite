@@ -51,7 +51,8 @@ constexpr auto COMMAND_PING = "COMMAND:PING";
 constexpr auto RESULT_PING = "RESULT:PING:OK:";
 
 constexpr auto COMMAND_INFO = "COMMAND:INFO";
-constexpr auto RESULT_INFO = "RESULT:INFO:DeKoi's DeFocuser Lite Firmware v1.0";
+// build.ps1 patches the v__FIRMWARE_VERSION__ token in place before compile.
+constexpr auto RESULT_INFO = "RESULT:INFO:DeKoi's DeFocuser Lite Firmware v2.1.3";
 
 constexpr auto COMMAND_FOCUSER_GETPOSITION = "COMMAND:FOCUSER:GETPOSITION";
 constexpr auto RESULT_FOCUSER_POSITION = "RESULT:FOCUSER:POSITION:";
@@ -146,14 +147,14 @@ bool is_reverse = false;
 uint32_t position;
 uint32_t max_steps = 100000;
 
-// Speed setting: 0 = FAST (current firmware speed), 1 = NORMAL, 2 = SLOW.
+// Speed setting: 0 = FAST, 1 = NORMAL (default), 2 = SLOW.
 // speed_factor_x10 scales both the start and cruise step delays.
 // Higher factor = longer delay per step = slower motor.
-//   FAST   -> 10 (1.0x, current behavior)
+//   FAST   -> 10 (1.0x)
 //   NORMAL -> 15 (1.5x, ~33% slower cruise)
 //   SLOW   -> 20 (2.0x, ~50% slower cruise)
-uint8_t speed_setting = 0;
-uint8_t speed_factor_x10 = 10;
+uint8_t speed_setting = 1;
+uint8_t speed_factor_x10 = 15;
 
 bool is_manually_jogging = false;
 bool jog_direction = false;
@@ -271,9 +272,9 @@ void setup()
       EEPROM.get(EEPROM_STALL_THRESHOLD_BASE_ADDR, stall_guard_threshold);
 
       // Speed byte may be garbage on EEPROM that pre-dates this field.
-      // Coerce out-of-range values to FAST (default).
+      // Coerce out-of-range values to NORMAL (default).
       if (speed_setting > 2) {
-          speed_setting = 0;
+          speed_setting = 1;
           EEPROM.put(EEPROM_SPEED_BASE_ADDR, speed_setting);
           EEPROM.commit();
       }
@@ -289,7 +290,7 @@ void setup()
       position = 0;
       max_steps = 100000;
       is_reverse = false;
-      speed_setting = 0;
+      speed_setting = 1;
       stall_guard_threshold = STALL_THRESHOLD_DEFAULT;
       applySpeedFactor();
       // Store it...

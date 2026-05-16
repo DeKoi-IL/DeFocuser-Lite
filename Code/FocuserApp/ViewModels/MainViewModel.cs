@@ -6,11 +6,14 @@
  */
 
 using ASCOM.DeKoi.DeFocuserApp.Properties;
+using ASCOM.DeKoi.DeFocuserApp.Services;
 
 using System;
 using System.Collections.ObjectModel;
 using System.IO.Ports;
 using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
@@ -172,7 +175,7 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             }
         }
 
-        private string speed = "Fast";
+        private string speed = "Normal";
         public string Speed
         {
             get => speed;
@@ -284,47 +287,155 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         private bool logAutoScroll = true;
         public bool LogAutoScroll { get => logAutoScroll; set => SetField(ref logAutoScroll, value); }
 
+        // Toggling these persists immediately so the layout survives crashes,
+        // task-manager kills, or USB power loss — not just clean exits.
         private bool connectionExpanded = true;
         public bool ConnectionExpanded
         {
             get => connectionExpanded;
-            set { if (SetField(ref connectionExpanded, value)) Settings.Default.ConnectionExpanded = value; }
+            set { if (SetField(ref connectionExpanded, value)) PersistSetting(() => Settings.Default.ConnectionExpanded = value); }
         }
 
         private bool settingsExpanded = true;
         public bool SettingsExpanded
         {
             get => settingsExpanded;
-            set { if (SetField(ref settingsExpanded, value)) Settings.Default.SettingsExpanded = value; }
+            set { if (SetField(ref settingsExpanded, value)) PersistSetting(() => Settings.Default.SettingsExpanded = value); }
         }
 
         private bool positionExpanded = true;
         public bool PositionExpanded
         {
             get => positionExpanded;
-            set { if (SetField(ref positionExpanded, value)) Settings.Default.PositionExpanded = value; }
+            set { if (SetField(ref positionExpanded, value)) PersistSetting(() => Settings.Default.PositionExpanded = value); }
         }
 
         private bool movementExpanded = true;
         public bool MovementExpanded
         {
             get => movementExpanded;
-            set { if (SetField(ref movementExpanded, value)) Settings.Default.MovementExpanded = value; }
+            set { if (SetField(ref movementExpanded, value)) PersistSetting(() => Settings.Default.MovementExpanded = value); }
         }
 
         private bool showProgress = true;
         public bool ShowProgress
         {
             get => showProgress;
-            set { if (SetField(ref showProgress, value)) Settings.Default.ShowProgress = value; }
+            set { if (SetField(ref showProgress, value)) PersistSetting(() => Settings.Default.ShowProgress = value); }
         }
 
         private bool showConsole = true;
         public bool ShowConsole
         {
             get => showConsole;
-            set { if (SetField(ref showConsole, value)) Settings.Default.ShowConsole = value; }
+            set { if (SetField(ref showConsole, value)) PersistSetting(() => Settings.Default.ShowConsole = value); }
         }
+
+        private static void PersistSetting(Action apply)
+        {
+            try { apply(); Settings.Default.Save(); }
+            catch { /* user.config IO errors are non-fatal */ }
+        }
+
+        // ---- Update state (hub + firmware) ----
+        private UpdateInfo updateInfo;
+        public UpdateInfo UpdateInfo
+        {
+            get => updateInfo;
+            private set
+            {
+                if (SetField(ref updateInfo, value))
+                {
+                    OnPropertyChanged(nameof(UpdateAvailable));
+                    OnPropertyChanged(nameof(FirmwareUpdateAvailable));
+                    OnPropertyChanged(nameof(UpdateBadgeText));
+                }
+            }
+        }
+
+        public bool UpdateAvailable
+        {
+            get
+            {
+                if (updateInfo == null || !updateInfo.HubAvailable) return false;
+                var skipped = Settings.Default.SkipVersion;
+                if (!string.IsNullOrEmpty(skipped)
+                    && updateInfo.LatestVersion != null
+                    && string.Equals(skipped, updateInfo.LatestVersion.ToString(), StringComparison.Ordinal))
+                {
+                    return false;
+                }
+                return true;
+            }
+        }
+
+        public bool FirmwareUpdateAvailable
+        {
+            get
+            {
+                if (updateInfo == null || updateInfo.FirmwareVersion == null) return false;
+                if (firmwareVersion == null) return false;
+                return updateInfo.FirmwareVersion.CompareTo(firmwareVersion) > 0;
+            }
+        }
+
+        public string UpdateBadgeText
+        {
+            get
+            {
+                if (updateInfo == null || !updateInfo.HubAvailable) return string.Empty;
+                return updateInfo.LatestVersion != null
+                    ? "Update Available v" + updateInfo.LatestVersion
+                    : "Update Available";
+            }
+        }
+
+        private string firmwareVersionText;
+        public string FirmwareVersionText
+        {
+            get => firmwareVersionText;
+            private set { if (SetField(ref firmwareVersionText, value)) OnPropertyChanged(nameof(FirmwareUpdateAvailable)); }
+        }
+
+        private Version firmwareVersion;
+        public Version FirmwareVersion
+        {
+            get => firmwareVersion;
+            private set
+            {
+                if (SetField(ref firmwareVersion, value))
+                {
+                    OnPropertyChanged(nameof(FirmwareUpdateAvailable));
+                }
+            }
+        }
+
+        private bool isFlashingFirmware;
+        public bool IsFlashingFirmware
+        {
+            get => isFlashingFirmware;
+            private set
+            {
+                if (SetField(ref isFlashingFirmware, value))
+                {
+                    System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public void SetUpdateInfo(UpdateInfo info)
+        {
+            UpdateInfo = info;
+            if (info != null && info.HubAvailable)
+            {
+                Log(LogKind.Info, "Update available: v" + info.LatestVersion);
+            }
+        }
+
+        public string CurrentAppVersion => GetAppVersion();
+
+        public string CurrentFirmwareVersionDisplay =>
+            firmwareVersion != null ? "v" + firmwareVersion.ToString() : (firmwareVersionText ?? "—");
 
         private string accentColor = "#E5484D";
         public string AccentColor
@@ -355,6 +466,21 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         public RelayCommand SetLimitCommand { get; }
         public RelayCommand ClearLogCommand { get; }
         public RelayCommand CopyLogCommand { get; }
+        public RelayCommand CopyLineCommand { get; }
+        public RelayCommand CopyLineMessageCommand { get; }
+        public RelayCommand SendManualCommand { get; }
+        public RelayCommand ToggleConsoleCommand { get; }
+
+        private string manualCommandText;
+        public string ManualCommandText
+        {
+            get => manualCommandText;
+            set
+            {
+                if (SetField(ref manualCommandText, value))
+                    System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+            }
+        }
         public RelayCommand TargetIncrementCommand { get; }
         public RelayCommand TargetDecrementCommand { get; }
 
@@ -384,6 +510,12 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             SetLimitCommand = new RelayCommand(_ => SetLimit(), _ => isConnected && isCalibrating);
             ClearLogCommand = new RelayCommand(_ => ClearLog());
             CopyLogCommand = new RelayCommand(_ => CopyLog());
+            CopyLineCommand = new RelayCommand(p => CopyLine(p as LogEntry, includeMeta: true));
+            CopyLineMessageCommand = new RelayCommand(p => CopyLine(p as LogEntry, includeMeta: false));
+            SendManualCommand = new RelayCommand(
+                _ => SendManualAsync().ConfigureAwait(false),
+                _ => isConnected && !string.IsNullOrWhiteSpace(manualCommandText));
+            ToggleConsoleCommand = new RelayCommand(_ => ShowConsole = !ShowConsole);
             TargetIncrementCommand = new RelayCommand(_ => Target = Math.Min(maxPosition <= 0 ? int.MaxValue : maxPosition, target + stepSize));
             TargetDecrementCommand = new RelayCommand(_ => Target = Math.Max(0, target - stepSize));
 
@@ -532,6 +664,13 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                 bool rev = await Task.Run(() => serial.GetIsReverse());
                 string spd = await Task.Run(() => SafeGetSpeed());
                 int? thr = await Task.Run(() => SafeGetStallThreshold());
+                string info = await Task.Run(() => SafeGetFirmwareInfo());
+
+                if (!string.IsNullOrEmpty(info))
+                {
+                    FirmwareVersionText = info;
+                    FirmwareVersion = ParseFirmwareVersion(info);
+                }
 
                 Position = p;
                 MaxPosition = m;
@@ -583,14 +722,30 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             catch { return null; }
         }
 
+        private string SafeGetFirmwareInfo()
+        {
+            try { return serial.GetFirmwareInfo(); }
+            catch { return null; }
+        }
+
+        private static readonly Regex firmwareVersionRegex = new Regex(@"v(\d+\.\d+(?:\.\d+)?)", RegexOptions.IgnoreCase);
+
+        private static Version ParseFirmwareVersion(string infoLine)
+        {
+            if (string.IsNullOrEmpty(infoLine)) return null;
+            var m = firmwareVersionRegex.Match(infoLine);
+            if (!m.Success) return null;
+            return UpdateChecker.TryParse(m.Groups[1].Value);
+        }
+
         private static string NormalizeSpeed(string raw)
         {
-            if (string.IsNullOrWhiteSpace(raw)) return "Fast";
+            if (string.IsNullOrWhiteSpace(raw)) return "Normal";
             string u = raw.Trim().ToUpperInvariant();
             if (u == "FAST") return "Fast";
             if (u == "NORMAL") return "Normal";
             if (u == "SLOW") return "Slow";
-            return "Fast";
+            return "Normal";
         }
 
         private void PollDevice()
@@ -815,6 +970,46 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             }
         }
 
+        private async Task SendManualAsync()
+        {
+            if (!isConnected) return;
+            string cmd = (manualCommandText ?? string.Empty).Trim();
+            if (cmd.Length == 0) return;
+
+            try
+            {
+                string response = await Task.Run(() => serial.SendRawCommand(cmd));
+                // Serial.SerialTraffic already logs Tx + Rx via OnSerialTraffic,
+                // so we don't double-log here.
+                _ = response;
+            }
+            catch (Exception ex)
+            {
+                Log(LogKind.Err, "Manual command failed: " + ex.Message);
+            }
+            finally
+            {
+                ManualCommandText = string.Empty;
+            }
+        }
+
+        private void CopyLine(LogEntry entry, bool includeMeta)
+        {
+            if (entry == null) return;
+            try
+            {
+                string text = includeMeta
+                    ? entry.Timestamp + " [" + entry.KindLabel + "] " + entry.Message
+                    : entry.Message;
+                if (!string.IsNullOrEmpty(text))
+                    Clipboard.SetText(text);
+            }
+            catch (Exception ex)
+            {
+                Log(LogKind.Err, "Copy line failed: " + ex.Message);
+            }
+        }
+
         public void Log(LogKind kind, string message)
         {
             if (!logEnabled) return;
@@ -862,6 +1057,137 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
 
         public bool HasAscomClients => pipes.ConnectedClientCount > 0;
         public int AscomClientCount => pipes.ConnectedClientCount;
+
+        private async Task ReconnectAfterFlashAsync(string preferredPort, CancellationToken ct)
+        {
+            Log(LogKind.Info, "Waiting for device to re-enumerate...");
+
+            // Give USB ~6s total to re-enumerate. Refresh port list each tick.
+            const int totalMs = 6000;
+            const int stepMs = 500;
+            int waited = 0;
+
+            string[] portsAtStart;
+            try { portsAtStart = SerialPort.GetPortNames(); }
+            catch { portsAtStart = new string[0]; }
+
+            while (waited < totalMs)
+            {
+                await Task.Delay(stepMs, ct);
+                waited += stepMs;
+
+                try
+                {
+                    var current = SerialPort.GetPortNames();
+                    if (current.Contains(preferredPort)) break;
+                    if (current.Except(portsAtStart).Any()) break;
+                }
+                catch { }
+            }
+
+            uiDispatcher.Invoke(() => RefreshPorts());
+
+            if (AvailablePorts.Contains(preferredPort))
+            {
+                Log(LogKind.Info, "Reconnecting to " + preferredPort);
+                SelectedPort = preferredPort;
+                AutoDetect = false;
+                await ConnectAsync();
+            }
+
+            if (!isConnected)
+            {
+                Log(LogKind.Err, "Reconnect failed. Unplug + replug the device, then click Connect.");
+            }
+        }
+
+        // Flashes the ESP32-C3 over the same serial port the hub uses. The hub
+        // must release the port for esptool — caller should have warned the
+        // user about any connected ASCOM clients before calling.
+        public async Task<bool> FlashFirmwareAsync(
+            string firmwareUrl,
+            Version firmwareVersion,
+            CancellationToken ct)
+        {
+            if (isFlashingFirmware) return false;
+
+            string esptool = FirmwareFlasher.ResolveEsptoolPath();
+            if (esptool == null)
+            {
+                try
+                {
+                    esptool = await FirmwareFlasher.EnsureEsptoolAsync(
+                        msg => Log(LogKind.Info, msg), CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    Log(LogKind.Err, "esptool fetch failed: " + ex.Message
+                        + " — drop esptool.exe at " + FirmwareFlasher.LocalCachePath());
+                    return false;
+                }
+            }
+
+            string port = serial.ConnectedPortName ?? Settings.Default.LastComPort;
+            if (string.IsNullOrEmpty(port))
+            {
+                Log(LogKind.Err, "No COM port available for firmware flash.");
+                return false;
+            }
+
+            IsFlashingFirmware = true;
+            bool wasConnected = isConnected;
+            try
+            {
+                Log(LogKind.Info, "Downloading firmware v" + firmwareVersion + " ...");
+                string binPath = await FirmwareFlasher.DownloadFirmwareAsync(firmwareUrl, firmwareVersion, ct);
+                Log(LogKind.Ok, "Firmware downloaded (" + new System.IO.FileInfo(binPath).Length + " bytes)");
+
+                if (wasConnected)
+                {
+                    Log(LogKind.Info, "Releasing serial port " + port + " for flash");
+                    pollTimer.Stop();
+                    pipes.Stop();
+                    await Task.Run(() => serial.Disconnect());
+                    IsConnected = false;
+                    await Task.Delay(500, ct);
+                }
+
+                Log(LogKind.Info, "Flashing " + port + " via esptool...");
+                bool ok = await FirmwareFlasher.FlashAsync(esptool, port, binPath,
+                    line => Log(line.IsError ? LogKind.Warn : LogKind.Recv, "esptool: " + line.Line),
+                    ct);
+
+                if (ok)
+                {
+                    Log(LogKind.Ok, "Flash complete. Waiting for chip reboot...");
+                }
+                else
+                {
+                    Log(LogKind.Err, "Flash failed. Firmware on device may be in an inconsistent state.");
+                }
+
+                if (wasConnected)
+                {
+                    await ReconnectAfterFlashAsync(port, ct);
+                }
+
+                return ok;
+            }
+            catch (OperationCanceledException)
+            {
+                Log(LogKind.Warn, "Firmware flash cancelled");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Log(LogKind.Err, "Firmware flash error: " + ex.Message);
+                return false;
+            }
+            finally
+            {
+                IsFlashingFirmware = false;
+            }
+        }
 
         public void Dispose()
         {

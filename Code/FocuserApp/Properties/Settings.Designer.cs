@@ -134,5 +134,21 @@ namespace ASCOM.DeKoi.DeFocuserApp.Properties {
             get { return ((bool)(this["MovementExpanded"])); }
             set { this["MovementExpanded"] = value; }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("2000-01-01")]
+        public global::System.DateTime LastUpdateCheckTime {
+            get { return ((global::System.DateTime)(this["LastUpdateCheckTime"])); }
+            set { this["LastUpdateCheckTime"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string SkipVersion {
+            get { return ((string)(this["SkipVersion"])); }
+            set { this["SkipVersion"] = value; }
+        }
     }
 }

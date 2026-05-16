@@ -44,6 +44,9 @@ namespace ASCOM.DeKoi.DeFocuserApp
         private const string COMMAND_PING = "COMMAND:PING";
         private const string RESULT_PING = "RESULT:PING:" + OK + ":";
 
+        private const string COMMAND_INFO = "COMMAND:INFO";
+        private const string RESULT_INFO_PREFIX = "RESULT:INFO:";
+
         private const string COMMAND_FOCUSER_GETPOSITION = "COMMAND:FOCUSER:GETPOSITION";
         private const string RESULT_FOCUSER_POSITION = "RESULT:FOCUSER:POSITION:";
 
@@ -379,6 +382,13 @@ namespace ASCOM.DeKoi.DeFocuserApp
         {
             string response = SendCommandToDevice(COMMAND_FOCUSER_GETSTALLTHRESHOLD, RESULT_FOCUSER_GETSTALLTHRESHOLD);
             return int.Parse(response);
+        }
+
+        // Returns the firmware identification string (e.g. "DeKoi's DeFocuser Lite Firmware v1.0").
+        // Used by the update flow to compare against the released firmware version.
+        public string GetFirmwareInfo()
+        {
+            return SendCommandToDevice(COMMAND_INFO, RESULT_INFO_PREFIX);
         }
 
         public void Dispose()

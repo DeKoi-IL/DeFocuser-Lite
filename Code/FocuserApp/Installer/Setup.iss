@@ -34,6 +34,8 @@ Source: "Code\ASCOM_Driver\bin\Release\ASCOM.DeKoi.DeFocuserLite.dll"; DestDir: 
 ; FocuserApp WPF Controller EXE (owns serial connection, serves ASCOM clients)
 Source: "Code\FocuserApp\bin\x64\Release\ASCOM.DeKoi.DeFocuserApp.exe"; DestDir: "{app}"
 Source: "Code\FocuserApp\bin\x64\Release\ASCOM.DeKoi.DeFocuserApp.exe.config"; DestDir: "{app}"
+; esptool.exe — used by the hub to flash ESP32-C3 firmware updates over serial.
+Source: "Tools\esptool\esptool.exe"; DestDir: "{app}\tools"; Flags: skipifsourcedoesntexist
 
 [Icons]
 Name: "{group}\DeFocuser Lite Controller"; Filename: "{app}\ASCOM.DeKoi.DeFocuserApp.exe"
@@ -47,6 +49,12 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 Filename: "{dotnet4032}\regasm.exe"; Parameters: "/codebase ""{app}\ASCOM.DeKoi.DeFocuserLite.dll"""; Flags: runhidden 32bit
 ; Register COM for 64-bit
 Filename: "{dotnet4064}\regasm.exe"; Parameters: "/codebase ""{app}\ASCOM.DeKoi.DeFocuserLite.dll"""; Flags: runhidden 64bit; Check: IsWin64
+; Relaunch after install. Split into two entries because Inno's 'postinstall'
+; checkbox never renders during /SILENT installs (so the box is effectively
+; unchecked and the app wouldn't relaunch). The hub's auto-update flow uses
+; /SILENT, so we need a second unconditional [Run] guarded by WizardSilent.
+Filename: "{app}\ASCOM.DeKoi.DeFocuserApp.exe"; Description: "Launch {#MyAppPublisher}'s {#MyAppName}"; Flags: nowait postinstall runascurrentuser; Check: not WizardSilent
+Filename: "{app}\ASCOM.DeKoi.DeFocuserApp.exe"; Flags: nowait runascurrentuser; Check: WizardSilent
 
 [UninstallRun]
 Filename: "{dotnet4032}\regasm.exe"; Parameters: "-u ""{app}\ASCOM.DeKoi.DeFocuserLite.dll"""; Flags: runhidden 32bit; RunOnceId: "RegasmUnreg32"
