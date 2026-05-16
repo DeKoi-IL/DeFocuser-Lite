@@ -5,10 +5,13 @@
  */
 
 using ASCOM.DeKoi.DeFocuserApp.Properties;
+using ASCOM.DeKoi.DeFocuserApp.Services;
 using ASCOM.DeKoi.DeFocuserApp.ViewModels;
+using ASCOM.DeKoi.DeFocuserApp.Views;
 
 using System;
 using System.ComponentModel;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Input;
@@ -47,6 +50,35 @@ namespace ASCOM.DeKoi.DeFocuserApp
         {
             UpdateProgressFill();
             vm.TryAutoConnectOnStartup();
+            _ = CheckForUpdatesOnStartupAsync();
+        }
+
+        private async Task CheckForUpdatesOnStartupAsync()
+        {
+            try
+            {
+                var info = await UpdateChecker.CheckAsync();
+                if (info == null) return;
+
+                Settings.Default.LastUpdateCheckTime = DateTime.UtcNow;
+                Settings.Default.Save();
+
+                // Respect "skip this version" choice from a previous dialog.
+                string skipped = Settings.Default.SkipVersion ?? string.Empty;
+                if (info.LatestVersion != null
+                    && string.Equals(skipped, info.LatestVersion.ToString(), StringComparison.Ordinal))
+                {
+                    // Still publish to the VM so Settings popup can show it,
+                    // but the badge is suppressed because we re-check the
+                    // skip rule there.
+                }
+
+                Dispatcher.Invoke(() => vm.SetUpdateInfo(info));
+            }
+            catch
+            {
+                // No network / GitHub down — never user-facing on startup.
+            }
         }
 
         private void Vm_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -112,6 +144,20 @@ namespace ASCOM.DeKoi.DeFocuserApp
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void UpdateButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (vm.UpdateInfo == null) return;
+            var dlg = new UpdateDialog(vm, vm.UpdateInfo) { Owner = this };
+            dlg.ShowDialog();
+        }
+
+        private void SettingsButton_Click(object sender, RoutedEventArgs e)
+        {
+            var settingsVm = new SettingsViewModel(vm);
+            var dlg = new SettingsWindow(settingsVm) { Owner = this };
+            dlg.ShowDialog();
         }
 
         private void ToggleMaximize()

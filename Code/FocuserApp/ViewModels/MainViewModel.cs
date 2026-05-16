@@ -6,11 +6,14 @@
  */
 
 using ASCOM.DeKoi.DeFocuserApp.Properties;
+using ASCOM.DeKoi.DeFocuserApp.Services;
 
 using System;
 using System.Collections.ObjectModel;
 using System.IO.Ports;
 using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
@@ -326,6 +329,104 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             set { if (SetField(ref showConsole, value)) Settings.Default.ShowConsole = value; }
         }
 
+        // ---- Update state (hub + firmware) ----
+        private UpdateInfo updateInfo;
+        public UpdateInfo UpdateInfo
+        {
+            get => updateInfo;
+            private set
+            {
+                if (SetField(ref updateInfo, value))
+                {
+                    OnPropertyChanged(nameof(UpdateAvailable));
+                    OnPropertyChanged(nameof(FirmwareUpdateAvailable));
+                    OnPropertyChanged(nameof(UpdateBadgeText));
+                }
+            }
+        }
+
+        public bool UpdateAvailable
+        {
+            get
+            {
+                if (updateInfo == null || !updateInfo.HubAvailable) return false;
+                var skipped = Settings.Default.SkipVersion;
+                if (!string.IsNullOrEmpty(skipped)
+                    && updateInfo.LatestVersion != null
+                    && string.Equals(skipped, updateInfo.LatestVersion.ToString(), StringComparison.Ordinal))
+                {
+                    return false;
+                }
+                return true;
+            }
+        }
+
+        public bool FirmwareUpdateAvailable
+        {
+            get
+            {
+                if (updateInfo == null || updateInfo.FirmwareVersion == null) return false;
+                if (firmwareVersion == null) return false;
+                return updateInfo.FirmwareVersion.CompareTo(firmwareVersion) > 0;
+            }
+        }
+
+        public string UpdateBadgeText
+        {
+            get
+            {
+                if (updateInfo == null || !updateInfo.HubAvailable) return string.Empty;
+                return "Update " + (updateInfo.LatestVersion != null ? "v" + updateInfo.LatestVersion : "available");
+            }
+        }
+
+        private string firmwareVersionText;
+        public string FirmwareVersionText
+        {
+            get => firmwareVersionText;
+            private set { if (SetField(ref firmwareVersionText, value)) OnPropertyChanged(nameof(FirmwareUpdateAvailable)); }
+        }
+
+        private Version firmwareVersion;
+        public Version FirmwareVersion
+        {
+            get => firmwareVersion;
+            private set
+            {
+                if (SetField(ref firmwareVersion, value))
+                {
+                    OnPropertyChanged(nameof(FirmwareUpdateAvailable));
+                }
+            }
+        }
+
+        private bool isFlashingFirmware;
+        public bool IsFlashingFirmware
+        {
+            get => isFlashingFirmware;
+            private set
+            {
+                if (SetField(ref isFlashingFirmware, value))
+                {
+                    System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public void SetUpdateInfo(UpdateInfo info)
+        {
+            UpdateInfo = info;
+            if (info != null && info.HubAvailable)
+            {
+                Log(LogKind.Info, "Update available: v" + info.LatestVersion);
+            }
+        }
+
+        public string CurrentAppVersion => GetAppVersion();
+
+        public string CurrentFirmwareVersionDisplay =>
+            firmwareVersion != null ? "v" + firmwareVersion.ToString() : (firmwareVersionText ?? "—");
+
         private string accentColor = "#E5484D";
         public string AccentColor
         {
@@ -532,6 +633,13 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                 bool rev = await Task.Run(() => serial.GetIsReverse());
                 string spd = await Task.Run(() => SafeGetSpeed());
                 int? thr = await Task.Run(() => SafeGetStallThreshold());
+                string info = await Task.Run(() => SafeGetFirmwareInfo());
+
+                if (!string.IsNullOrEmpty(info))
+                {
+                    FirmwareVersionText = info;
+                    FirmwareVersion = ParseFirmwareVersion(info);
+                }
 
                 Position = p;
                 MaxPosition = m;
@@ -581,6 +689,22 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         {
             try { return serial.GetStallThreshold(); }
             catch { return null; }
+        }
+
+        private string SafeGetFirmwareInfo()
+        {
+            try { return serial.GetFirmwareInfo(); }
+            catch { return null; }
+        }
+
+        private static readonly Regex firmwareVersionRegex = new Regex(@"v(\d+\.\d+(?:\.\d+)?)", RegexOptions.IgnoreCase);
+
+        private static Version ParseFirmwareVersion(string infoLine)
+        {
+            if (string.IsNullOrEmpty(infoLine)) return null;
+            var m = firmwareVersionRegex.Match(infoLine);
+            if (!m.Success) return null;
+            return UpdateChecker.TryParse(m.Groups[1].Value);
         }
 
         private static string NormalizeSpeed(string raw)
@@ -862,6 +986,89 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
 
         public bool HasAscomClients => pipes.ConnectedClientCount > 0;
         public int AscomClientCount => pipes.ConnectedClientCount;
+
+        // Flashes the ESP32-C3 over the same serial port the hub uses. The hub
+        // must release the port for esptool — caller should have warned the
+        // user about any connected ASCOM clients before calling.
+        public async Task<bool> FlashFirmwareAsync(
+            string firmwareUrl,
+            Version firmwareVersion,
+            CancellationToken ct)
+        {
+            if (isFlashingFirmware) return false;
+
+            string esptool = FirmwareFlasher.ResolveEsptoolPath();
+            if (esptool == null)
+            {
+                Log(LogKind.Err, "esptool.exe not found. Reinstall the hub to restore it.");
+                return false;
+            }
+
+            string port = serial.ConnectedPortName ?? Settings.Default.LastComPort;
+            if (string.IsNullOrEmpty(port))
+            {
+                Log(LogKind.Err, "No COM port available for firmware flash.");
+                return false;
+            }
+
+            IsFlashingFirmware = true;
+            bool wasConnected = isConnected;
+            try
+            {
+                Log(LogKind.Info, "Downloading firmware v" + firmwareVersion + " ...");
+                string binPath = await FirmwareFlasher.DownloadFirmwareAsync(firmwareUrl, firmwareVersion, ct);
+                Log(LogKind.Ok, "Firmware downloaded (" + new System.IO.FileInfo(binPath).Length + " bytes)");
+
+                if (wasConnected)
+                {
+                    Log(LogKind.Info, "Releasing serial port " + port + " for flash");
+                    pollTimer.Stop();
+                    pipes.Stop();
+                    await Task.Run(() => serial.Disconnect());
+                    IsConnected = false;
+                    await Task.Delay(500, ct);
+                }
+
+                Log(LogKind.Info, "Flashing " + port + " via esptool...");
+                bool ok = await FirmwareFlasher.FlashAsync(esptool, port, binPath,
+                    line => Log(line.IsError ? LogKind.Warn : LogKind.Recv, "esptool: " + line.Line),
+                    ct);
+
+                if (ok)
+                {
+                    Log(LogKind.Ok, "Flash complete. Waiting for chip reboot...");
+                    await Task.Delay(2000, ct);
+                }
+                else
+                {
+                    Log(LogKind.Err, "Flash failed. Firmware on device may be in an inconsistent state.");
+                }
+
+                if (wasConnected)
+                {
+                    Log(LogKind.Info, "Reconnecting to " + port);
+                    SelectedPort = port;
+                    AutoDetect = false;
+                    await ConnectAsync();
+                }
+
+                return ok;
+            }
+            catch (OperationCanceledException)
+            {
+                Log(LogKind.Warn, "Firmware flash cancelled");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Log(LogKind.Err, "Firmware flash error: " + ex.Message);
+                return false;
+            }
+            finally
+            {
+                IsFlashingFirmware = false;
+            }
+        }
 
         public void Dispose()
         {

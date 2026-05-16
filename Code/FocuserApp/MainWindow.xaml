@@ -88,6 +88,7 @@
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
           </Grid.ColumnDefinitions>
 
           <!-- Brand -->
@@ -113,8 +114,45 @@
                        Margin="10,0,0,0" VerticalAlignment="Center" />
           </StackPanel>
 
+          <!-- Update badge + settings gear -->
+          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+            <Button x:Name="UpdateButton"
+                    Click="UpdateButton_Click"
+                    Cursor="Hand"
+                    Padding="10,4"
+                    BorderThickness="1"
+                    Background="{StaticResource AccentSoftBrush}"
+                    BorderBrush="{StaticResource AccentLineBrush}"
+                    Foreground="{StaticResource AccentBrush}"
+                    Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVis}}"
+                    ToolTip="A new version is available — click to install">
+              <Button.Template>
+                <ControlTemplate TargetType="Button">
+                  <Border Background="{TemplateBinding Background}"
+                          BorderBrush="{TemplateBinding BorderBrush}"
+                          BorderThickness="{TemplateBinding BorderThickness}"
+                          CornerRadius="999"
+                          Padding="{TemplateBinding Padding}"
+                          SnapsToDevicePixels="True">
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                </ControlTemplate>
+              </Button.Template>
+              <StackPanel Orientation="Horizontal">
+                <Ellipse Width="7" Height="7" Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding UpdateBadgeText}"
+                           Margin="7,0,0,0"
+                           FontSize="11.5" FontWeight="Medium"
+                           VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Style="{StaticResource WindowControlButton}" Click="SettingsButton_Click" ToolTip="Settings" Margin="6,0,0,0">
+              <Path Data="{StaticResource Icon.Cog}" Style="{StaticResource WinIconPath}" Width="13" Height="13" />
+            </Button>
+          </StackPanel>
+
           <!-- Window controls -->
-          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+          <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
             <Button Style="{StaticResource WindowControlButton}" Click="MinimizeButton_Click" ToolTip="Minimize">
               <Path Data="{StaticResource Icon.Min}" Style="{StaticResource WinIconPath}" Width="11" Height="11" />
             </Button>
