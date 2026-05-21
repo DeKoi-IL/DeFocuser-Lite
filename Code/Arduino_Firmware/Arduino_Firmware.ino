@@ -25,9 +25,6 @@
 #endif
 
 #define DRIVER_SERIAL_BAUD 57600
-#define STALL_COUNT_THRESHOLD 2
-#define STALL_TIME_THRS 300
-#define STALL_GRACE_PERIOD 1000
 
 #define MAX_SPEED_DELAY 8000
 #define MIN_SPEED_DELAY 14000
@@ -52,7 +49,7 @@ constexpr auto RESULT_PING = "RESULT:PING:OK:";
 
 constexpr auto COMMAND_INFO = "COMMAND:INFO";
 // build.ps1 patches the v__FIRMWARE_VERSION__ token in place before compile.
-constexpr auto RESULT_INFO = "RESULT:INFO:DeKoi's DeFocuser Lite Firmware v2.1.3";
+constexpr auto RESULT_INFO = "RESULT:INFO:DeKoi's DeFocuser Lite Firmware v2.1.4";
 
 constexpr auto COMMAND_FOCUSER_GETPOSITION = "COMMAND:FOCUSER:GETPOSITION";
 constexpr auto RESULT_FOCUSER_POSITION = "RESULT:FOCUSER:POSITION:";
@@ -106,6 +103,26 @@ constexpr auto RESULT_FOCUSER_SETSTALLTHRESHOLD = "RESULT:FOCUSER:SETSTALLTHRESH
 constexpr auto COMMAND_FOCUSER_GETSTALLTHRESHOLD = "COMMAND:FOCUSER:GETSTALLTHRESHOLD";
 constexpr auto RESULT_FOCUSER_GETSTALLTHRESHOLD = "RESULT:FOCUSER:GETSTALLTHRESHOLD:";
 
+constexpr auto COMMAND_FOCUSER_SETSTALLCOUNT = "COMMAND:FOCUSER:SETSTALLCOUNT:";
+constexpr auto RESULT_FOCUSER_SETSTALLCOUNT = "RESULT:FOCUSER:SETSTALLCOUNT:";
+constexpr auto COMMAND_FOCUSER_GETSTALLCOUNT = "COMMAND:FOCUSER:GETSTALLCOUNT";
+constexpr auto RESULT_FOCUSER_GETSTALLCOUNT = "RESULT:FOCUSER:GETSTALLCOUNT:";
+
+constexpr auto COMMAND_FOCUSER_SETSTALLWINDOW = "COMMAND:FOCUSER:SETSTALLWINDOW:";
+constexpr auto RESULT_FOCUSER_SETSTALLWINDOW = "RESULT:FOCUSER:SETSTALLWINDOW:";
+constexpr auto COMMAND_FOCUSER_GETSTALLWINDOW = "COMMAND:FOCUSER:GETSTALLWINDOW";
+constexpr auto RESULT_FOCUSER_GETSTALLWINDOW = "RESULT:FOCUSER:GETSTALLWINDOW:";
+
+constexpr auto COMMAND_FOCUSER_SETSTALLGRACE = "COMMAND:FOCUSER:SETSTALLGRACE:";
+constexpr auto RESULT_FOCUSER_SETSTALLGRACE = "RESULT:FOCUSER:SETSTALLGRACE:";
+constexpr auto COMMAND_FOCUSER_GETSTALLGRACE = "COMMAND:FOCUSER:GETSTALLGRACE";
+constexpr auto RESULT_FOCUSER_GETSTALLGRACE = "RESULT:FOCUSER:GETSTALLGRACE:";
+
+constexpr auto COMMAND_FOCUSER_SETSTALLENABLED = "COMMAND:FOCUSER:SETSTALLENABLED:";
+constexpr auto RESULT_FOCUSER_SETSTALLENABLED = "RESULT:FOCUSER:SETSTALLENABLED:";
+constexpr auto COMMAND_FOCUSER_GETSTALLENABLED = "COMMAND:FOCUSER:GETSTALLENABLED";
+constexpr auto RESULT_FOCUSER_GETSTALLENABLED = "RESULT:FOCUSER:GETSTALLENABLED:";
+
 // SGTHRS register is 8-bit. Higher value = less sensitive to stall detection.
 // Slider exposes only the upper half (128-255) since values below half are
 // far too sensitive for our motor and produce constant false positives.
@@ -113,19 +130,46 @@ constexpr uint8_t STALL_THRESHOLD_MIN = 128;
 constexpr uint8_t STALL_THRESHOLD_MAX = 255;
 constexpr uint8_t STALL_THRESHOLD_DEFAULT = 211;
 
+constexpr uint8_t  STALL_COUNT_MIN = 1;
+constexpr uint8_t  STALL_COUNT_MAX = 20;
+constexpr uint8_t  STALL_COUNT_DEFAULT = 2;
+
+constexpr uint16_t STALL_WINDOW_MIN = 50;
+constexpr uint16_t STALL_WINDOW_MAX = 5000;
+constexpr uint16_t STALL_WINDOW_DEFAULT = 300;
+
+constexpr uint16_t STALL_GRACE_MIN = 0;
+constexpr uint16_t STALL_GRACE_MAX = 10000;
+constexpr uint16_t STALL_GRACE_DEFAULT = 1000;
+
+constexpr bool STALL_ENABLED_DEFAULT = true;
+
 constexpr auto ERROR_INVALID_COMMAND = "ERROR:INVALID_COMMAND";
 
-// Bumped twice from 0x12345678: once for speed_setting at 13,
-// once for stall_threshold at 14. Old magic -> mismatch -> full
-// re-init with defaults (no garbage read).
-const unsigned int EEPROM_MAGIC_NUMBER = 0x1234567A;
+// Bumped on every layout change. Old magic -> mismatch -> full re-init with
+// defaults (no garbage read, no partial migration). Layout:
+//   0..3   magic
+//   4..7   position (uint32_t)
+//   8..11  max_steps (uint32_t)
+//   12     is_reverse (bool)
+//   13     speed_setting (uint8_t)
+//   14     stall_guard_threshold (uint8_t, SGTHRS)
+//   15     stall_count_threshold (uint8_t)
+//   16..17 stall_time_window (uint16_t, ms)
+//   18..19 stall_grace_period (uint16_t, ms)
+//   20     stall_enabled (bool)
+const unsigned int EEPROM_MAGIC_NUMBER = 0x1234567B;
 const unsigned int EEPROM_MAGIC_NUMBER_ADDR = 0;
 const unsigned int EEPROM_POSITION_BASE_ADDR = 4;
 const unsigned int EEPROM_MAX_STEPS_BASE_ADDR = 8;
 const unsigned int EEPROM_REVERSE_BASE_ADDR = 12;
 const unsigned int EEPROM_SPEED_BASE_ADDR = 13;
 const unsigned int EEPROM_STALL_THRESHOLD_BASE_ADDR = 14;
-const unsigned int EEPROM_SIZE = 15;
+const unsigned int EEPROM_STALL_COUNT_BASE_ADDR = 15;
+const unsigned int EEPROM_STALL_WINDOW_BASE_ADDR = 16;
+const unsigned int EEPROM_STALL_GRACE_BASE_ADDR = 18;
+const unsigned int EEPROM_STALL_ENABLED_BASE_ADDR = 20;
+const unsigned int EEPROM_SIZE = 21;
 
 //-- VARIABLES ----------------------------------------------------------------
 
@@ -172,7 +216,12 @@ uint32_t ihold      = 2;   // low hold current
 uint32_t irun       = 31; // full run current scale
 uint32_t iholddelay = 4;   // small delay
 
-uint8_t stall_guard_threshold = STALL_THRESHOLD_DEFAULT;
+uint8_t  stall_guard_threshold = STALL_THRESHOLD_DEFAULT;
+uint8_t  stall_count_threshold = STALL_COUNT_DEFAULT;
+uint16_t stall_time_window     = STALL_WINDOW_DEFAULT;
+uint16_t stall_grace_period    = STALL_GRACE_DEFAULT;
+bool     stall_enabled         = STALL_ENABLED_DEFAULT;
+
 uint8_t stall_counter = 0;
 int start_stall_time = 0;
 int stall_delay = -1;
@@ -195,6 +244,14 @@ void sendSpeed();
 void setSpeed(String arg);
 void sendStallThreshold();
 void setStallThreshold(String arg);
+void sendStallCount();
+void setStallCount(String arg);
+void sendStallWindow();
+void setStallWindow(String arg);
+void sendStallGrace();
+void setStallGrace(String arg);
+void sendStallEnabled();
+void setStallEnabled(String arg);
 
 void setup() 
 {
@@ -270,6 +327,10 @@ void setup()
       EEPROM.get(EEPROM_REVERSE_BASE_ADDR, is_reverse);
       EEPROM.get(EEPROM_SPEED_BASE_ADDR, speed_setting);
       EEPROM.get(EEPROM_STALL_THRESHOLD_BASE_ADDR, stall_guard_threshold);
+      EEPROM.get(EEPROM_STALL_COUNT_BASE_ADDR, stall_count_threshold);
+      EEPROM.get(EEPROM_STALL_WINDOW_BASE_ADDR, stall_time_window);
+      EEPROM.get(EEPROM_STALL_GRACE_BASE_ADDR, stall_grace_period);
+      EEPROM.get(EEPROM_STALL_ENABLED_BASE_ADDR, stall_enabled);
 
       // Speed byte may be garbage on EEPROM that pre-dates this field.
       // Coerce out-of-range values to NORMAL (default).
@@ -284,6 +345,21 @@ void setup()
           EEPROM.put(EEPROM_STALL_THRESHOLD_BASE_ADDR, stall_guard_threshold);
           EEPROM.commit();
       }
+      if (stall_count_threshold < STALL_COUNT_MIN || stall_count_threshold > STALL_COUNT_MAX) {
+          stall_count_threshold = STALL_COUNT_DEFAULT;
+          EEPROM.put(EEPROM_STALL_COUNT_BASE_ADDR, stall_count_threshold);
+          EEPROM.commit();
+      }
+      if (stall_time_window < STALL_WINDOW_MIN || stall_time_window > STALL_WINDOW_MAX) {
+          stall_time_window = STALL_WINDOW_DEFAULT;
+          EEPROM.put(EEPROM_STALL_WINDOW_BASE_ADDR, stall_time_window);
+          EEPROM.commit();
+      }
+      if (stall_grace_period > STALL_GRACE_MAX) {
+          stall_grace_period = STALL_GRACE_DEFAULT;
+          EEPROM.put(EEPROM_STALL_GRACE_BASE_ADDR, stall_grace_period);
+          EEPROM.commit();
+      }
       applySpeedFactor();
   } else {
       // The position had never been stored in EEPROM. Initialize it to 0...
@@ -292,6 +368,10 @@ void setup()
       is_reverse = false;
       speed_setting = 1;
       stall_guard_threshold = STALL_THRESHOLD_DEFAULT;
+      stall_count_threshold = STALL_COUNT_DEFAULT;
+      stall_time_window     = STALL_WINDOW_DEFAULT;
+      stall_grace_period    = STALL_GRACE_DEFAULT;
+      stall_enabled         = STALL_ENABLED_DEFAULT;
       applySpeedFactor();
       // Store it...
       EEPROM.put(EEPROM_POSITION_BASE_ADDR, position);
@@ -299,6 +379,10 @@ void setup()
       EEPROM.put(EEPROM_REVERSE_BASE_ADDR, is_reverse);
       EEPROM.put(EEPROM_SPEED_BASE_ADDR, speed_setting);
       EEPROM.put(EEPROM_STALL_THRESHOLD_BASE_ADDR, stall_guard_threshold);
+      EEPROM.put(EEPROM_STALL_COUNT_BASE_ADDR, stall_count_threshold);
+      EEPROM.put(EEPROM_STALL_WINDOW_BASE_ADDR, stall_time_window);
+      EEPROM.put(EEPROM_STALL_GRACE_BASE_ADDR, stall_grace_period);
+      EEPROM.put(EEPROM_STALL_ENABLED_BASE_ADDR, stall_enabled);
       // And mark the value as trustworthy...
       EEPROM.put(EEPROM_MAGIC_NUMBER_ADDR, EEPROM_MAGIC_NUMBER);
 
@@ -413,6 +497,22 @@ bool HandleFreeCommand(String command)
   {
     sendStallThreshold();
   }
+  else if (command == COMMAND_FOCUSER_GETSTALLCOUNT)
+  {
+    sendStallCount();
+  }
+  else if (command == COMMAND_FOCUSER_GETSTALLWINDOW)
+  {
+    sendStallWindow();
+  }
+  else if (command == COMMAND_FOCUSER_GETSTALLGRACE)
+  {
+    sendStallGrace();
+  }
+  else if (command == COMMAND_FOCUSER_GETSTALLENABLED)
+  {
+    sendStallEnabled();
+  }
   else if (command == COMMAND_FOCUSER_HALT && is_calibrating)
   {
     haltFocuser();
@@ -484,6 +584,26 @@ bool HandleBlockingCommand(String command)
     String arg = command.substring(strlen(COMMAND_FOCUSER_SETSTALLTHRESHOLD));
     setStallThreshold(arg);
   }
+  else if (command.startsWith(COMMAND_FOCUSER_SETSTALLCOUNT))
+  {
+    String arg = command.substring(strlen(COMMAND_FOCUSER_SETSTALLCOUNT));
+    setStallCount(arg);
+  }
+  else if (command.startsWith(COMMAND_FOCUSER_SETSTALLWINDOW))
+  {
+    String arg = command.substring(strlen(COMMAND_FOCUSER_SETSTALLWINDOW));
+    setStallWindow(arg);
+  }
+  else if (command.startsWith(COMMAND_FOCUSER_SETSTALLGRACE))
+  {
+    String arg = command.substring(strlen(COMMAND_FOCUSER_SETSTALLGRACE));
+    setStallGrace(arg);
+  }
+  else if (command.startsWith(COMMAND_FOCUSER_SETSTALLENABLED))
+  {
+    String arg = command.substring(strlen(COMMAND_FOCUSER_SETSTALLENABLED));
+    setStallEnabled(arg);
+  }
   else
   {
     return false;
@@ -552,13 +672,18 @@ void stop()
 
 void stallInterrupt()
 {
+  if (!stall_enabled)
+  {
+    return;
+  }
+
   int now = millis();
 
 #if DEBUG
     Serial.println("Stall detected");
 #endif
 
-  if (now - stall_grace < STALL_GRACE_PERIOD)
+  if (now - stall_grace < (int)stall_grace_period)
   {
     return;
   }
@@ -572,9 +697,9 @@ void stallInterrupt()
   }
 
   stall_counter++;
-  if (now - start_stall_time < STALL_TIME_THRS)
+  if (now - start_stall_time < (int)stall_time_window)
   {
-    if(stall_counter < STALL_COUNT_THRESHOLD)
+    if(stall_counter < stall_count_threshold)
     {
       return;
     }
@@ -586,7 +711,7 @@ void stallInterrupt()
     return;
   }
 
-  if (now - start_stall_time > STALL_TIME_THRS)
+  if (now - start_stall_time > (int)stall_time_window)
   {
     stall_counter = 0; // false stall
     start_stall_time = 0;
@@ -755,6 +880,109 @@ void setStallThreshold(String arg)
         stall_guard_threshold = value;
         driver.SGTHRS(stall_guard_threshold);
         EEPROM.put(EEPROM_STALL_THRESHOLD_BASE_ADDR, stall_guard_threshold);
+        EEPROM.commit();
+    }
+
+    Serial.println(MSG_OK);
+}
+
+void sendStallCount()
+{
+    Serial.print(RESULT_FOCUSER_GETSTALLCOUNT);
+    Serial.println(stall_count_threshold);
+}
+
+void setStallCount(String arg)
+{
+    Serial.print(RESULT_FOCUSER_SETSTALLCOUNT);
+
+    long parsed = arg.toInt();
+    if (arg.length() == 0 || parsed < STALL_COUNT_MIN || parsed > STALL_COUNT_MAX) {
+        Serial.println(MSG_NOK);
+        return;
+    }
+
+    uint8_t value = static_cast<uint8_t>(parsed);
+    if (value != stall_count_threshold) {
+        stall_count_threshold = value;
+        EEPROM.put(EEPROM_STALL_COUNT_BASE_ADDR, stall_count_threshold);
+        EEPROM.commit();
+    }
+
+    Serial.println(MSG_OK);
+}
+
+void sendStallWindow()
+{
+    Serial.print(RESULT_FOCUSER_GETSTALLWINDOW);
+    Serial.println(stall_time_window);
+}
+
+void setStallWindow(String arg)
+{
+    Serial.print(RESULT_FOCUSER_SETSTALLWINDOW);
+
+    long parsed = arg.toInt();
+    if (arg.length() == 0 || parsed < STALL_WINDOW_MIN || parsed > STALL_WINDOW_MAX) {
+        Serial.println(MSG_NOK);
+        return;
+    }
+
+    uint16_t value = static_cast<uint16_t>(parsed);
+    if (value != stall_time_window) {
+        stall_time_window = value;
+        EEPROM.put(EEPROM_STALL_WINDOW_BASE_ADDR, stall_time_window);
+        EEPROM.commit();
+    }
+
+    Serial.println(MSG_OK);
+}
+
+void sendStallGrace()
+{
+    Serial.print(RESULT_FOCUSER_GETSTALLGRACE);
+    Serial.println(stall_grace_period);
+}
+
+void setStallGrace(String arg)
+{
+    Serial.print(RESULT_FOCUSER_SETSTALLGRACE);
+
+    long parsed = arg.toInt();
+    if (arg.length() == 0 || parsed < STALL_GRACE_MIN || parsed > STALL_GRACE_MAX) {
+        Serial.println(MSG_NOK);
+        return;
+    }
+
+    uint16_t value = static_cast<uint16_t>(parsed);
+    if (value != stall_grace_period) {
+        stall_grace_period = value;
+        EEPROM.put(EEPROM_STALL_GRACE_BASE_ADDR, stall_grace_period);
+        EEPROM.commit();
+    }
+
+    Serial.println(MSG_OK);
+}
+
+void sendStallEnabled()
+{
+    Serial.print(RESULT_FOCUSER_GETSTALLENABLED);
+    Serial.println(stall_enabled ? TRUE : FALSE);
+}
+
+void setStallEnabled(String arg)
+{
+    Serial.print(RESULT_FOCUSER_SETSTALLENABLED);
+
+    if (arg != TRUE && arg != FALSE) {
+        Serial.println(MSG_NOK);
+        return;
+    }
+
+    bool value = (arg == TRUE);
+    if (value != stall_enabled) {
+        stall_enabled = value;
+        EEPROM.put(EEPROM_STALL_ENABLED_BASE_ADDR, stall_enabled);
         EEPROM.commit();
     }
 

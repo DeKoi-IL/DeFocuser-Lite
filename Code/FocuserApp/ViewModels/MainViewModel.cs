@@ -153,8 +153,23 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
 
         public int StallThresholdMin => SerialManager.StallThresholdMin;
         public int StallThresholdMax => SerialManager.StallThresholdMax;
+        public int StallThresholdDefault => SerialManager.StallThresholdDefault;
 
-        private int stallThreshold = 211;
+        public int StallCountMin => SerialManager.StallCountMin;
+        public int StallCountMax => SerialManager.StallCountMax;
+        public int StallCountDefault => SerialManager.StallCountDefault;
+
+        public int StallWindowMin => SerialManager.StallWindowMin;
+        public int StallWindowMax => SerialManager.StallWindowMax;
+        public int StallWindowDefault => SerialManager.StallWindowDefault;
+
+        public int StallGraceMin => SerialManager.StallGraceMin;
+        public int StallGraceMax => SerialManager.StallGraceMax;
+        public int StallGraceDefault => SerialManager.StallGraceDefault;
+
+        public bool StallEnabledDefault => SerialManager.StallEnabledDefault;
+
+        private int stallThreshold = SerialManager.StallThresholdDefault;
         public int StallThreshold
         {
             get => stallThreshold;
@@ -173,6 +188,99 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                     }
                 }
             }
+        }
+
+        private int stallCount = SerialManager.StallCountDefault;
+        public int StallCount
+        {
+            get => stallCount;
+            set
+            {
+                int clamped = Math.Max(StallCountMin, Math.Min(StallCountMax, value));
+                if (SetField(ref stallCount, clamped))
+                {
+                    if (isConnected)
+                    {
+                        Task.Run(() =>
+                        {
+                            try { serial.SetStallCount(clamped); }
+                            catch (Exception ex) { Log(LogKind.Err, "SetStallCount failed: " + ex.Message); }
+                        });
+                    }
+                }
+            }
+        }
+
+        private int stallWindow = SerialManager.StallWindowDefault;
+        public int StallWindow
+        {
+            get => stallWindow;
+            set
+            {
+                int clamped = Math.Max(StallWindowMin, Math.Min(StallWindowMax, value));
+                if (SetField(ref stallWindow, clamped))
+                {
+                    if (isConnected)
+                    {
+                        Task.Run(() =>
+                        {
+                            try { serial.SetStallWindow(clamped); }
+                            catch (Exception ex) { Log(LogKind.Err, "SetStallWindow failed: " + ex.Message); }
+                        });
+                    }
+                }
+            }
+        }
+
+        private int stallGrace = SerialManager.StallGraceDefault;
+        public int StallGrace
+        {
+            get => stallGrace;
+            set
+            {
+                int clamped = Math.Max(StallGraceMin, Math.Min(StallGraceMax, value));
+                if (SetField(ref stallGrace, clamped))
+                {
+                    if (isConnected)
+                    {
+                        Task.Run(() =>
+                        {
+                            try { serial.SetStallGrace(clamped); }
+                            catch (Exception ex) { Log(LogKind.Err, "SetStallGrace failed: " + ex.Message); }
+                        });
+                    }
+                }
+            }
+        }
+
+        private bool stallEnabled = SerialManager.StallEnabledDefault;
+        public bool StallEnabled
+        {
+            get => stallEnabled;
+            set
+            {
+                if (SetField(ref stallEnabled, value))
+                {
+                    if (isConnected)
+                    {
+                        Task.Run(() =>
+                        {
+                            try { serial.SetStallEnabled(value); }
+                            catch (Exception ex) { Log(LogKind.Err, "SetStallEnabled failed: " + ex.Message); }
+                        });
+                    }
+                }
+            }
+        }
+
+        public void ResetStallSettingsToDefaults()
+        {
+            // Triggers individual setters, which push each value to the device.
+            StallThreshold = StallThresholdDefault;
+            StallCount     = StallCountDefault;
+            StallWindow    = StallWindowDefault;
+            StallGrace     = StallGraceDefault;
+            StallEnabled   = StallEnabledDefault;
         }
 
         private string speed = "Normal";
@@ -664,6 +772,10 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                 bool rev = await Task.Run(() => serial.GetIsReverse());
                 string spd = await Task.Run(() => SafeGetSpeed());
                 int? thr = await Task.Run(() => SafeGetStallThreshold());
+                int? sCount = await Task.Run(() => SafeGetStallCount());
+                int? sWin = await Task.Run(() => SafeGetStallWindow());
+                int? sGrace = await Task.Run(() => SafeGetStallGrace());
+                bool? sEn = await Task.Run(() => SafeGetStallEnabled());
                 string info = await Task.Run(() => SafeGetFirmwareInfo());
 
                 if (!string.IsNullOrEmpty(info))
@@ -688,6 +800,30 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                 {
                     stallThreshold = Math.Max(StallThresholdMin, Math.Min(StallThresholdMax, thr.Value));
                     OnPropertyChanged(nameof(StallThreshold));
+                }
+
+                if (sCount.HasValue)
+                {
+                    stallCount = Math.Max(StallCountMin, Math.Min(StallCountMax, sCount.Value));
+                    OnPropertyChanged(nameof(StallCount));
+                }
+
+                if (sWin.HasValue)
+                {
+                    stallWindow = Math.Max(StallWindowMin, Math.Min(StallWindowMax, sWin.Value));
+                    OnPropertyChanged(nameof(StallWindow));
+                }
+
+                if (sGrace.HasValue)
+                {
+                    stallGrace = Math.Max(StallGraceMin, Math.Min(StallGraceMax, sGrace.Value));
+                    OnPropertyChanged(nameof(StallGrace));
+                }
+
+                if (sEn.HasValue)
+                {
+                    stallEnabled = sEn.Value;
+                    OnPropertyChanged(nameof(StallEnabled));
                 }
             }
             catch (Exception ex)
@@ -719,6 +855,30 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         private int? SafeGetStallThreshold()
         {
             try { return serial.GetStallThreshold(); }
+            catch { return null; }
+        }
+
+        private int? SafeGetStallCount()
+        {
+            try { return serial.GetStallCount(); }
+            catch { return null; }
+        }
+
+        private int? SafeGetStallWindow()
+        {
+            try { return serial.GetStallWindow(); }
+            catch { return null; }
+        }
+
+        private int? SafeGetStallGrace()
+        {
+            try { return serial.GetStallGrace(); }
+            catch { return null; }
+        }
+
+        private bool? SafeGetStallEnabled()
+        {
+            try { return serial.GetStallEnabled(); }
             catch { return null; }
         }
 

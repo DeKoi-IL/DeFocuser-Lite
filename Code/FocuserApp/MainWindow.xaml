@@ -323,41 +323,6 @@
                 </Grid>
               </Grid>
 
-              <!-- Stall sensitivity slider (TMC SGTHRS register, 128..255) -->
-              <Grid Margin="0,0,0,10">
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="110" />
-                  <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="Stall sense" Style="{StaticResource FieldLabel}" VerticalAlignment="Top" Margin="0,2,0,0" />
-                <StackPanel Grid.Column="1">
-                  <Slider Style="{StaticResource ThemedSlider}"
-                          Minimum="{Binding StallThresholdMin, Mode=OneWay}"
-                          Maximum="{Binding StallThresholdMax, Mode=OneWay}"
-                          Value="{Binding StallThreshold, Mode=TwoWay}"
-                          SmallChange="1" LargeChange="8"
-                          IsEnabled="{Binding IsConnected}" />
-                  <Grid Margin="0,4,0,0">
-                    <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="*" />
-                      <ColumnDefinition Width="Auto" />
-                      <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="Most sensitive"
-                               Foreground="{StaticResource Text3Brush}" FontSize="10.5"
-                               HorizontalAlignment="Left" />
-                    <TextBlock Grid.Column="1"
-                               Text="{Binding StallThreshold}"
-                               FontFamily="{StaticResource MonoFont}" FontSize="11"
-                               Foreground="{StaticResource Text2Brush}"
-                               HorizontalAlignment="Center" />
-                    <TextBlock Grid.Column="2" Text="Least sensitive"
-                               Foreground="{StaticResource Text3Brush}" FontSize="10.5"
-                               HorizontalAlignment="Right" />
-                  </Grid>
-                </StackPanel>
-              </Grid>
-
               <!-- Reverse -->
               <Grid Margin="0,0,0,4">
                 <Grid.ColumnDefinitions>

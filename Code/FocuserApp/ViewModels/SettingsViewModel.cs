@@ -1,8 +1,9 @@
 /*
  * SettingsViewModel.cs
- * Backs the modal Settings window. Currently exposes only the Update section
- * (manual check + install for hub, flash for firmware). New sections will be
- * added here as the popup grows.
+ * Backs the modal Settings window. Exposes the Updates section (manual check
+ * + install for hub, flash for firmware) and the Stall detection section
+ * (full set of tuning knobs). Stall-detection state lives on MainViewModel;
+ * this VM just proxies through so edits flow straight to the device.
  */
 
 using ASCOM.DeKoi.DeFocuserApp.Properties;
@@ -29,6 +30,8 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             FlashFirmwareCommand = new RelayCommand(_ => _ = FlashAsync(),
                 _ => !isChecking && !mainVm.IsFlashingFirmware
                      && mainVm.FirmwareUpdateAvailable && mainVm.IsConnected);
+            ResetStallDefaultsCommand = new RelayCommand(_ => mainVm.ResetStallSettingsToDefaults(),
+                _ => mainVm.IsConnected);
 
             lastChecked = Settings.Default.LastUpdateCheckTime;
             status = mainVm.UpdateAvailable
@@ -48,7 +51,17 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                     OnPropertyChanged(nameof(LatestHubVersionDisplay));
                     OnPropertyChanged(nameof(LatestFirmwareVersionDisplay));
                     OnPropertyChanged(nameof(FirmwareVersionDisplay));
+                    OnPropertyChanged(nameof(IsConnected));
                     CommandManager.InvalidateRequerySuggested();
+                }
+
+                switch (e.PropertyName)
+                {
+                    case nameof(MainViewModel.StallThreshold): OnPropertyChanged(nameof(StallThreshold)); break;
+                    case nameof(MainViewModel.StallCount):     OnPropertyChanged(nameof(StallCount));     break;
+                    case nameof(MainViewModel.StallWindow):    OnPropertyChanged(nameof(StallWindow));    break;
+                    case nameof(MainViewModel.StallGrace):     OnPropertyChanged(nameof(StallGrace));     break;
+                    case nameof(MainViewModel.StallEnabled):   OnPropertyChanged(nameof(StallEnabled));   break;
                 }
             };
         }
@@ -56,6 +69,47 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         public RelayCommand CheckForUpdatesCommand { get; }
         public RelayCommand InstallUpdateCommand { get; }
         public RelayCommand FlashFirmwareCommand { get; }
+        public RelayCommand ResetStallDefaultsCommand { get; }
+
+        public bool IsConnected => mainVm.IsConnected;
+
+        public int StallThresholdMin => mainVm.StallThresholdMin;
+        public int StallThresholdMax => mainVm.StallThresholdMax;
+        public int StallThreshold
+        {
+            get => mainVm.StallThreshold;
+            set => mainVm.StallThreshold = value;
+        }
+
+        public int StallCountMin => mainVm.StallCountMin;
+        public int StallCountMax => mainVm.StallCountMax;
+        public int StallCount
+        {
+            get => mainVm.StallCount;
+            set => mainVm.StallCount = value;
+        }
+
+        public int StallWindowMin => mainVm.StallWindowMin;
+        public int StallWindowMax => mainVm.StallWindowMax;
+        public int StallWindow
+        {
+            get => mainVm.StallWindow;
+            set => mainVm.StallWindow = value;
+        }
+
+        public int StallGraceMin => mainVm.StallGraceMin;
+        public int StallGraceMax => mainVm.StallGraceMax;
+        public int StallGrace
+        {
+            get => mainVm.StallGrace;
+            set => mainVm.StallGrace = value;
+        }
+
+        public bool StallEnabled
+        {
+            get => mainVm.StallEnabled;
+            set => mainVm.StallEnabled = value;
+        }
 
         // Settings popup ignores SkipVersion — user came here to act explicitly.
         public bool HubUpdateAvailable => mainVm.UpdateInfo != null && mainVm.UpdateInfo.HubAvailable;

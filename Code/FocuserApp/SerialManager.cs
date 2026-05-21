@@ -95,8 +95,43 @@ namespace ASCOM.DeKoi.DeFocuserApp
         private const string COMMAND_FOCUSER_GETSTALLTHRESHOLD = "COMMAND:FOCUSER:GETSTALLTHRESHOLD";
         private const string RESULT_FOCUSER_GETSTALLTHRESHOLD = "RESULT:FOCUSER:GETSTALLTHRESHOLD:";
 
+        private const string COMMAND_FOCUSER_SETSTALLCOUNT = "COMMAND:FOCUSER:SETSTALLCOUNT:";
+        private const string RESULT_FOCUSER_SETSTALLCOUNT = "RESULT:FOCUSER:SETSTALLCOUNT:";
+        private const string COMMAND_FOCUSER_GETSTALLCOUNT = "COMMAND:FOCUSER:GETSTALLCOUNT";
+        private const string RESULT_FOCUSER_GETSTALLCOUNT = "RESULT:FOCUSER:GETSTALLCOUNT:";
+
+        private const string COMMAND_FOCUSER_SETSTALLWINDOW = "COMMAND:FOCUSER:SETSTALLWINDOW:";
+        private const string RESULT_FOCUSER_SETSTALLWINDOW = "RESULT:FOCUSER:SETSTALLWINDOW:";
+        private const string COMMAND_FOCUSER_GETSTALLWINDOW = "COMMAND:FOCUSER:GETSTALLWINDOW";
+        private const string RESULT_FOCUSER_GETSTALLWINDOW = "RESULT:FOCUSER:GETSTALLWINDOW:";
+
+        private const string COMMAND_FOCUSER_SETSTALLGRACE = "COMMAND:FOCUSER:SETSTALLGRACE:";
+        private const string RESULT_FOCUSER_SETSTALLGRACE = "RESULT:FOCUSER:SETSTALLGRACE:";
+        private const string COMMAND_FOCUSER_GETSTALLGRACE = "COMMAND:FOCUSER:GETSTALLGRACE";
+        private const string RESULT_FOCUSER_GETSTALLGRACE = "RESULT:FOCUSER:GETSTALLGRACE:";
+
+        private const string COMMAND_FOCUSER_SETSTALLENABLED = "COMMAND:FOCUSER:SETSTALLENABLED:";
+        private const string RESULT_FOCUSER_SETSTALLENABLED = "RESULT:FOCUSER:SETSTALLENABLED:";
+        private const string COMMAND_FOCUSER_GETSTALLENABLED = "COMMAND:FOCUSER:GETSTALLENABLED";
+        private const string RESULT_FOCUSER_GETSTALLENABLED = "RESULT:FOCUSER:GETSTALLENABLED:";
+
         public const int StallThresholdMin = 128;
         public const int StallThresholdMax = 255;
+        public const int StallThresholdDefault = 211;
+
+        public const int StallCountMin = 1;
+        public const int StallCountMax = 20;
+        public const int StallCountDefault = 2;
+
+        public const int StallWindowMin = 50;
+        public const int StallWindowMax = 5000;
+        public const int StallWindowDefault = 300;
+
+        public const int StallGraceMin = 0;
+        public const int StallGraceMax = 10000;
+        public const int StallGraceDefault = 1000;
+
+        public const bool StallEnabledDefault = true;
 
         private readonly object lockObject = new object();
 
@@ -382,6 +417,68 @@ namespace ASCOM.DeKoi.DeFocuserApp
         {
             string response = SendCommandToDevice(COMMAND_FOCUSER_GETSTALLTHRESHOLD, RESULT_FOCUSER_GETSTALLTHRESHOLD);
             return int.Parse(response);
+        }
+
+        public void SetStallCount(int value)
+        {
+            if (value < StallCountMin) value = StallCountMin;
+            if (value > StallCountMax) value = StallCountMax;
+            string response = SendCommandToDevice(COMMAND_FOCUSER_SETSTALLCOUNT + value.ToString(),
+                                                  RESULT_FOCUSER_SETSTALLCOUNT);
+            if (response != OK)
+                throw new ASCOM.DriverException("SetStallCount command failed (response: " + response + ").");
+        }
+
+        public int GetStallCount()
+        {
+            string response = SendCommandToDevice(COMMAND_FOCUSER_GETSTALLCOUNT, RESULT_FOCUSER_GETSTALLCOUNT);
+            return int.Parse(response);
+        }
+
+        public void SetStallWindow(int valueMs)
+        {
+            if (valueMs < StallWindowMin) valueMs = StallWindowMin;
+            if (valueMs > StallWindowMax) valueMs = StallWindowMax;
+            string response = SendCommandToDevice(COMMAND_FOCUSER_SETSTALLWINDOW + valueMs.ToString(),
+                                                  RESULT_FOCUSER_SETSTALLWINDOW);
+            if (response != OK)
+                throw new ASCOM.DriverException("SetStallWindow command failed (response: " + response + ").");
+        }
+
+        public int GetStallWindow()
+        {
+            string response = SendCommandToDevice(COMMAND_FOCUSER_GETSTALLWINDOW, RESULT_FOCUSER_GETSTALLWINDOW);
+            return int.Parse(response);
+        }
+
+        public void SetStallGrace(int valueMs)
+        {
+            if (valueMs < StallGraceMin) valueMs = StallGraceMin;
+            if (valueMs > StallGraceMax) valueMs = StallGraceMax;
+            string response = SendCommandToDevice(COMMAND_FOCUSER_SETSTALLGRACE + valueMs.ToString(),
+                                                  RESULT_FOCUSER_SETSTALLGRACE);
+            if (response != OK)
+                throw new ASCOM.DriverException("SetStallGrace command failed (response: " + response + ").");
+        }
+
+        public int GetStallGrace()
+        {
+            string response = SendCommandToDevice(COMMAND_FOCUSER_GETSTALLGRACE, RESULT_FOCUSER_GETSTALLGRACE);
+            return int.Parse(response);
+        }
+
+        public void SetStallEnabled(bool enabled)
+        {
+            string val = enabled ? TRUE : FALSE;
+            string response = SendCommandToDevice(COMMAND_FOCUSER_SETSTALLENABLED + val, RESULT_FOCUSER_SETSTALLENABLED);
+            if (response != OK)
+                throw new ASCOM.DriverException("SetStallEnabled command failed (response: " + response + ").");
+        }
+
+        public bool GetStallEnabled()
+        {
+            string response = SendCommandToDevice(COMMAND_FOCUSER_GETSTALLENABLED, RESULT_FOCUSER_GETSTALLENABLED);
+            return response == TRUE;
         }
 
         // Returns the firmware identification string (e.g. "DeKoi's DeFocuser Lite Firmware v1.0").
