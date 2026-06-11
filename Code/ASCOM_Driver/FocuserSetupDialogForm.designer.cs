@@ -41,7 +41,6 @@ namespace ASCOM.DeKoi
             this.chkTrace = new System.Windows.Forms.CheckBox();
             this.comboBoxComPort = new System.Windows.Forms.ComboBox();
             this.DSGLogo = new System.Windows.Forms.PictureBox();
-            this.chkAutoDetect = new System.Windows.Forms.CheckBox();
             this.errorProvider = new System.Windows.Forms.ErrorProvider(this.components);
             this.toolTip = new System.Windows.Forms.ToolTip(this.components);
             this.panel1 = new System.Windows.Forms.Panel();
@@ -91,22 +90,23 @@ namespace ASCOM.DeKoi
             this.chkTrace.AutoSize = true;
             this.chkTrace.Font = new System.Drawing.Font("Roboto Condensed", 10.2F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.chkTrace.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(158)))), ((int)(((byte)(161)))), ((int)(((byte)(176)))));
-            this.chkTrace.Location = new System.Drawing.Point(216, 107);
+            this.chkTrace.Location = new System.Drawing.Point(216, 95);
             this.chkTrace.Margin = new System.Windows.Forms.Padding(4);
             this.chkTrace.Name = "chkTrace";
             this.chkTrace.Size = new System.Drawing.Size(89, 24);
             this.chkTrace.TabIndex = 6;
             this.chkTrace.Text = "Trace on";
             this.chkTrace.UseVisualStyleBackColor = true;
-            // 
+            //
             // comboBoxComPort
-            // 
+            //
             this.comboBoxComPort.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.comboBoxComPort.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(74)))), ((int)(((byte)(79)))), ((int)(((byte)(99)))));
+            this.comboBoxComPort.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxComPort.Font = new System.Drawing.Font("Roboto Condensed", 10.2F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.comboBoxComPort.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(158)))), ((int)(((byte)(161)))), ((int)(((byte)(176)))));
             this.comboBoxComPort.FormattingEnabled = true;
-            this.comboBoxComPort.Location = new System.Drawing.Point(216, 61);
+            this.comboBoxComPort.Location = new System.Drawing.Point(216, 45);
             this.comboBoxComPort.Margin = new System.Windows.Forms.Padding(4);
             this.comboBoxComPort.Name = "comboBoxComPort";
             this.comboBoxComPort.Size = new System.Drawing.Size(169, 28);
@@ -126,24 +126,9 @@ namespace ASCOM.DeKoi
             this.DSGLogo.TabStop = false;
             this.DSGLogo.Click += new System.EventHandler(this.BrowseToHomepage);
             this.DSGLogo.DoubleClick += new System.EventHandler(this.BrowseToHomepage);
-            // 
-            // chkAutoDetect
-            // 
-            this.chkAutoDetect.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.chkAutoDetect.AutoSize = true;
-            this.chkAutoDetect.Font = new System.Drawing.Font("Roboto Condensed", 10.2F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.chkAutoDetect.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(158)))), ((int)(((byte)(161)))), ((int)(((byte)(176)))));
-            this.chkAutoDetect.Location = new System.Drawing.Point(216, 21);
-            this.chkAutoDetect.Margin = new System.Windows.Forms.Padding(4);
-            this.chkAutoDetect.Name = "chkAutoDetect";
-            this.chkAutoDetect.Size = new System.Drawing.Size(111, 24);
-            this.chkAutoDetect.TabIndex = 8;
-            this.chkAutoDetect.Text = "Auto-Detect";
-            this.chkAutoDetect.UseVisualStyleBackColor = true;
-            this.chkAutoDetect.CheckedChanged += new System.EventHandler(this.ChkAutoDetect_CheckedChanged);
-            // 
+            //
             // errorProvider
-            // 
+            //
             this.errorProvider.ContainerControl = this;
             // 
             // panel1
@@ -156,7 +141,6 @@ namespace ASCOM.DeKoi
             this.panel1.Controls.Add(this.DSGLogo);
             this.panel1.Controls.Add(this.chkTrace);
             this.panel1.Controls.Add(this.comboBoxComPort);
-            this.panel1.Controls.Add(this.chkAutoDetect);
             this.panel1.Location = new System.Drawing.Point(12, 57);
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(436, 176);
@@ -196,7 +180,7 @@ namespace ASCOM.DeKoi
             this.ShowIcon = false;
             this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Hide;
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "DeKoi\'s OAG Focuser";
+            this.Text = "DeKoi\'s DeFocuser Lite";
             this.Load += new System.EventHandler(this.FocuserSetupDialogForm_Load);
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.FocuserSetupDialogForm_Paint);
             ((System.ComponentModel.ISupportInitialize)(this.DSGLogo)).EndInit();
@@ -215,7 +199,6 @@ namespace ASCOM.DeKoi
         private System.Windows.Forms.CheckBox chkTrace;
         private System.Windows.Forms.ComboBox comboBoxComPort;
         private System.Windows.Forms.PictureBox DSGLogo;
-        private System.Windows.Forms.CheckBox chkAutoDetect;
         private System.Windows.Forms.ErrorProvider errorProvider;
         private System.Windows.Forms.ToolTip toolTip;
         private System.Windows.Forms.Panel panel1;

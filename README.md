@@ -25,7 +25,7 @@ Or you could retrofit the motor and front plate of the really old 12V ZWO focuse
 All versions can be found in the 3d models folder
 
 ## App
-The app is a single instance that can communicate with multiple drivers and funnels commands to the focus motor.
+Each app instance owns one focuser (one COM port) and funnels commands from multiple ASCOM clients to that focus motor. Run one instance per focuser — e.g. a main scope and a piggybacked guide/lens defocuser — and each NINA/SGP instance picks which one to use by selecting its COM port in the driver's Setup dialog.
 The app has many extra controls not possible to implement in control software like nina, sgp etc...
 <img width="1451" height="997" alt="image" src="https://github.com/user-attachments/assets/ec4229a1-f2a8-4f94-a811-841edca71723" />
 

@@ -32,7 +32,7 @@ namespace ASCOM.DeKoi.DeFocuserApp
         {
             InitializeComponent();
 
-            vm = new MainViewModel();
+            vm = new MainViewModel((System.Windows.Application.Current as App)?.LaunchPort);
             DataContext = vm;
             vm.LogAppended += Vm_LogAppended;
             vm.LogCleared += Vm_LogCleared;

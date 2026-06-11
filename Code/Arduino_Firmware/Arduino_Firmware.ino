@@ -49,7 +49,7 @@ constexpr auto RESULT_PING = "RESULT:PING:OK:";
 
 constexpr auto COMMAND_INFO = "COMMAND:INFO";
 // build.ps1 patches the v__FIRMWARE_VERSION__ token in place before compile.
-constexpr auto RESULT_INFO = "RESULT:INFO:DeKoi's DeFocuser Lite Firmware v2.1.4";
+constexpr auto RESULT_INFO = "RESULT:INFO:DeKoi's DeFocuser Lite Firmware v2.2.0";
 
 constexpr auto COMMAND_FOCUSER_GETPOSITION = "COMMAND:FOCUSER:GETPOSITION";
 constexpr auto RESULT_FOCUSER_POSITION = "RESULT:FOCUSER:POSITION:";

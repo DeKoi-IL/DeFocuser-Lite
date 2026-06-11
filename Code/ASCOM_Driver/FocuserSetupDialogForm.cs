@@ -50,18 +50,20 @@ namespace ASCOM.DeKoi
 
         private void FocuserSetupDialogForm_Load(object sender, EventArgs e)
         {
-            chkAutoDetect.Checked = Focuser.autoDetectComPort;
-
-            comboBoxComPort.Enabled = !chkAutoDetect.Checked;
-
-            // Set the list of COM ports to those that are currently available
+            // List currently available COM ports; the user picks the one their
+            // focuser is on. That port selects the matching hub instance.
             comboBoxComPort.Items.Clear();
             // Use System.IO because it's static
             comboBoxComPort.Items.AddRange(System.IO.Ports.SerialPort.GetPortNames());
-            // Select the current port if possible
-            if (Focuser.comPortOverride != null && comboBoxComPort.Items.Contains(Focuser.comPortOverride))
+
+            // Select the previously chosen port if it's still present.
+            if (!string.IsNullOrEmpty(focuser.comPort) && comboBoxComPort.Items.Contains(focuser.comPort))
             {
-                comboBoxComPort.SelectedItem = Focuser.comPortOverride;
+                comboBoxComPort.SelectedItem = focuser.comPort;
+            }
+            else if (comboBoxComPort.Items.Count > 0)
+            {
+                comboBoxComPort.SelectedIndex = 0;
             }
 
             chkTrace.Checked = focuser.tl.Enabled;
@@ -69,13 +71,7 @@ namespace ASCOM.DeKoi
 
         private void CmdOK_Click(object sender, EventArgs e)
         {
-            if (!Validate())
-            {
-                DialogResult = DialogResult.None;
-            }
-
-            Focuser.autoDetectComPort = chkAutoDetect.Checked;
-            Focuser.comPortOverride = (string)comboBoxComPort.SelectedItem;
+            focuser.comPort = (comboBoxComPort.SelectedItem as string) ?? string.Empty;
             focuser.tl.Enabled = chkTrace.Checked;
         }
 
@@ -84,16 +80,11 @@ namespace ASCOM.DeKoi
             Close();
         }
 
-        private void ChkAutoDetect_CheckedChanged(object sender, EventArgs e)
-        {
-            comboBoxComPort.Enabled = !((CheckBox)sender).Checked;
-        }
-
         private void BrowseToHomepage(object sender, EventArgs e)
         {
             try
             {
-                System.Diagnostics.Process.Start("https://github.com/jlecomte/ascom-oag-focuser");
+                System.Diagnostics.Process.Start("https://github.com/DeKoi-IL/DeFocuser-Lite");
             }
             catch (System.ComponentModel.Win32Exception noBrowser)
             {

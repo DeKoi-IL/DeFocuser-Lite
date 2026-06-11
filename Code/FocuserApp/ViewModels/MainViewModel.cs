@@ -592,8 +592,9 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         public RelayCommand TargetIncrementCommand { get; }
         public RelayCommand TargetDecrementCommand { get; }
 
-        public MainViewModel()
+        public MainViewModel(string launchPort = null)
         {
+            this.launchPort = launchPort;
             uiDispatcher = Dispatcher.CurrentDispatcher;
 
             serial = new SerialManager();
@@ -649,7 +650,13 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
 
             RefreshPorts();
 
-            if (!string.IsNullOrEmpty(persistedLastPort) && AvailablePorts.Contains(persistedLastPort))
+            // A launch port (passed via --port when the ASCOM driver auto-launches
+            // this hub for a specific focuser) wins over the persisted last port.
+            if (!string.IsNullOrEmpty(launchPort) && AvailablePorts.Contains(launchPort))
+            {
+                SelectedPort = launchPort;
+            }
+            else if (!string.IsNullOrEmpty(persistedLastPort) && AvailablePorts.Contains(persistedLastPort))
             {
                 SelectedPort = persistedLastPort;
             }
@@ -662,9 +669,21 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         }
 
         private readonly string persistedLastPort;
+        private readonly string launchPort;
 
         public void TryAutoConnectOnStartup()
         {
+            // An explicit launch port (driver auto-launch via --port) always
+            // connects, regardless of the AutoConnectOnStartup preference.
+            if (!string.IsNullOrEmpty(launchPort))
+            {
+                if (!AvailablePorts.Contains(launchPort)) return;
+                SelectedPort = launchPort;
+                AutoDetect = false;
+                ConnectAsync().ConfigureAwait(false);
+                return;
+            }
+
             if (!autoConnectOnOpen) return;
             // Only auto-connect if a port was *previously persisted* by a
             // successful prior connect — never on a port the constructor
@@ -710,7 +729,7 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             try
             {
                 await Task.Run(() => serial.Connect(portToUse, useAuto));
-                pipes.Start();
+                pipes.Start(serial.ConnectedPortName);
 
                 Settings.Default.LastComPort = serial.ConnectedPortName;
                 Settings.Default.Save();

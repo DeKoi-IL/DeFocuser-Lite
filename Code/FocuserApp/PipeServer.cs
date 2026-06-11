@@ -11,6 +11,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -18,7 +20,19 @@ namespace ASCOM.DeKoi.DeFocuserApp
 {
     internal class PipeServer : IDisposable
     {
-        public const string PIPE_NAME = "DeFocuserLitePipe";
+        // Pipe names are per-COM-port so multiple hub instances (one focuser
+        // each) can coexist. Each instance serves "DeFocuserLitePipe_<COMx>".
+        // The ASCOM driver builds the same name from the port chosen in its
+        // Setup dialog. Keep this prefix in sync with the driver.
+        public const string PIPE_PREFIX = "DeFocuserLitePipe";
+
+        public static string BuildPipeName(string portName)
+        {
+            string suffix = string.IsNullOrWhiteSpace(portName)
+                ? string.Empty
+                : "_" + portName.Trim().ToUpperInvariant();
+            return PIPE_PREFIX + suffix;
+        }
 
         private const string DEVICE_GUID = "dfafe960-d19c-4abd-af4a-4dc5f49775a3";
 
@@ -29,6 +43,7 @@ namespace ASCOM.DeKoi.DeFocuserApp
         private CancellationTokenSource cts;
         private bool isRunning;
         private int nextClientId = 1;
+        private string pipeName;
 
         public int ConnectedClientCount
         {
@@ -48,11 +63,36 @@ namespace ASCOM.DeKoi.DeFocuserApp
             this.serialManager = serialManager;
         }
 
-        public void Start()
+        /// <summary>
+        /// Explicit DACL granting authenticated users read/write access and the
+        /// right to create additional pipe instances. Without this the pipe gets
+        /// a restrictive default DACL and ASCOM clients in a separate process
+        /// (e.g. N.I.N.A.) can hit "Access to the path is denied" on connect.
+        ///
+        /// NOTE: this controls the DACL only — it does NOT lower the pipe's
+        /// mandatory integrity label. A client running at a LOWER integrity than
+        /// this app (app elevated, client not) is still blocked by Windows
+        /// "no write-up". Run the hub and the ASCOM client at the same elevation.
+        /// </summary>
+        private static readonly PipeSecurity PipeAccessSecurity = BuildPipeSecurity();
+
+        private static PipeSecurity BuildPipeSecurity()
+        {
+            var security = new PipeSecurity();
+            var authenticatedUsers = new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null);
+            security.AddAccessRule(new PipeAccessRule(
+                authenticatedUsers,
+                PipeAccessRights.ReadWrite | PipeAccessRights.CreateNewInstance,
+                AccessControlType.Allow));
+            return security;
+        }
+
+        public void Start(string portName)
         {
             if (isRunning)
                 return;
 
+            pipeName = BuildPipeName(portName);
             isRunning = true;
             cts = new CancellationTokenSource();
 
@@ -84,11 +124,14 @@ namespace ASCOM.DeKoi.DeFocuserApp
                 try
                 {
                     pipe = new NamedPipeServerStream(
-                        PIPE_NAME,
+                        pipeName,
                         PipeDirection.InOut,
                         NamedPipeServerStream.MaxAllowedServerInstances,
                         PipeTransmissionMode.Byte,
-                        PipeOptions.Asynchronous);
+                        PipeOptions.Asynchronous,
+                        0,
+                        0,
+                        PipeAccessSecurity);
 
                     await Task.Factory.FromAsync(pipe.BeginWaitForConnection, pipe.EndWaitForConnection, null);
 

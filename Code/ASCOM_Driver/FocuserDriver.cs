@@ -55,8 +55,16 @@ namespace ASCOM.DeKoi
         internal static string traceStateProfileName = "Trace Level";
         internal static string traceStateDefault = "false";
 
-        // Named pipe constants
-        private const string PIPE_NAME = "DeFocuserLitePipe";
+        // COM port of the hub instance this driver talks to. Each hub instance
+        // (one per focuser) serves a per-port pipe, so the port both selects the
+        // target hub and is the pipe-name discriminator. Persisted per driver
+        // instance in the ASCOM Profile via the Setup dialog.
+        internal static string comPortProfileName = "COM Port";
+        internal static string comPortDefault = "";
+
+        // Named pipe constants. The full pipe name is "<PIPE_PREFIX>_<COMx>";
+        // keep this prefix in sync with PipeServer.PIPE_PREFIX in the hub app.
+        private const string PIPE_PREFIX = "DeFocuserLitePipe";
         private const string MEDIATOR_PROCESS_NAME = "ASCOM.DeKoi.DeFocuserApp";
 
         // Protocol constants (same as serial protocol)
@@ -111,6 +119,23 @@ namespace ASCOM.DeKoi
         private bool connectedState;
 
         /// <summary>
+        /// COM port selected in the Setup dialog. Identifies which hub instance
+        /// (and thus which focuser) this driver connects to. Empty until the
+        /// user picks a port in Setup.
+        /// </summary>
+        internal string comPort = comPortDefault;
+
+        /// <summary>
+        /// Per-port pipe name this driver connects to, mirroring the hub's
+        /// PipeServer.BuildPipeName. Empty <see cref="comPort"/> yields the bare
+        /// prefix (which no hub serves), so connecting requires a chosen port.
+        /// </summary>
+        private string PipeName =>
+            PIPE_PREFIX + (string.IsNullOrWhiteSpace(comPort)
+                ? string.Empty
+                : "_" + comPort.Trim().ToUpperInvariant());
+
+        /// <summary>
         /// Lock object for thread-safe pipe communication
         /// </summary>
         private readonly object lockObject = new object();
@@ -142,16 +167,19 @@ namespace ASCOM.DeKoi
         #region Common properties and methods.
 
         /// <summary>
-        /// Displays the Setup Dialog form.
-        /// All configuration is handled by the DeFocuser Lite Controller app.
-        /// This method does nothing heavy — the mediator app is launched
-        /// only when Connected=true is called.
+        /// Displays the Setup Dialog form so the user can pick which focuser
+        /// (by COM port) this driver instance connects to, plus the trace level.
+        /// The chosen port selects the matching hub instance / pipe at Connect.
         /// </summary>
         public void SetupDialog()
         {
-            System.Windows.Forms.MessageBox.Show(
-                "No setup needed, click connect :)",
-                "DeFocuser Lite", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
+            using (var setupForm = new FocuserSetupDialogForm(this))
+            {
+                if (setupForm.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    WriteProfile();
+                }
+            }
         }
 
         public ArrayList SupportedActions
@@ -299,15 +327,22 @@ namespace ASCOM.DeKoi
 
                 if (value)
                 {
-                    LogMessage("Connected Set", "Connecting to mediator app");
+                    LogMessage("Connected Set", "Connecting to mediator app on " + comPort);
 
-                    // 1. Launch mediator app if not running
+                    if (string.IsNullOrWhiteSpace(comPort))
+                    {
+                        throw new NotConnectedException(
+                            "No focuser COM port selected. Open this driver's Properties/Setup " +
+                            "and choose the COM port your DeFocuser is on.");
+                    }
+
+                    // 1. Launch the hub for this port if it isn't already serving it
                     EnsureMediatorAppRunning();
 
-                    // 2. Connect to named pipe
+                    // 2. Connect to the per-port named pipe
                     try
                     {
-                        pipeClient = new NamedPipeClientStream(".", PIPE_NAME, PipeDirection.InOut);
+                        pipeClient = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut);
                         pipeClient.Connect(10000); // 10 second timeout
                         pipeReader = new StreamReader(pipeClient);
                         pipeWriter = new StreamWriter(pipeClient) { AutoFlush = true };
@@ -638,6 +673,7 @@ namespace ASCOM.DeKoi
             {
                 driverProfile.DeviceType = "Focuser";
                 tl.Enabled = Convert.ToBoolean(driverProfile.GetValue(driverID, traceStateProfileName, string.Empty, traceStateDefault));
+                comPort = driverProfile.GetValue(driverID, comPortProfileName, string.Empty, comPortDefault);
             }
         }
 
@@ -650,23 +686,16 @@ namespace ASCOM.DeKoi
             {
                 driverProfile.DeviceType = "Focuser";
                 driverProfile.WriteValue(driverID, traceStateProfileName, tl.Enabled.ToString());
+                driverProfile.WriteValue(driverID, comPortProfileName, comPort ?? string.Empty);
             }
         }
 
         /// <summary>
-        /// Launches the mediator app if not already running.
-        /// Does NOT wait for the pipe to become available (non-blocking).
-        /// Used by SetupDialog to avoid freezing the caller.
+        /// Launches a hub instance bound to <see cref="comPort"/> via "--port COMx",
+        /// so it auto-connects to that focuser and serves the matching pipe.
         /// </summary>
         private void LaunchMediatorApp()
         {
-            var processes = Process.GetProcessesByName(MEDIATOR_PROCESS_NAME);
-            if (processes.Length > 0)
-            {
-                LogMessage("LaunchMediatorApp", "Mediator app is already running");
-                return;
-            }
-
             string driverDir = Path.GetDirectoryName(
                 System.Reflection.Assembly.GetExecutingAssembly().Location);
             string appPath = Path.Combine(driverDir, MEDIATOR_PROCESS_NAME + ".exe");
@@ -676,51 +705,67 @@ namespace ASCOM.DeKoi
                 throw new DriverException("DeFocuser Lite Mediator application not found at: " + appPath);
             }
 
-            LogMessage("LaunchMediatorApp", "Launching mediator app from: " + appPath);
-            Process.Start(appPath);
+            LogMessage("LaunchMediatorApp", "Launching hub for " + comPort + " from: " + appPath);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = appPath,
+                Arguments = "--port " + comPort,
+                UseShellExecute = true
+            });
         }
 
         /// <summary>
-        /// Ensures the mediator app is running and its pipe server is available.
-        /// Launches the app if needed, then blocks until the pipe is reachable.
-        /// Fails immediately if the mediator process exits (user closed the app).
+        /// Tries to reach this driver's per-port pipe within the given timeout.
+        /// </summary>
+        private bool TryProbePipe(int timeoutMs)
+        {
+            try
+            {
+                using (var testPipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut))
+                {
+                    testPipe.Connect(timeoutMs);
+                    return true;
+                }
+            }
+            catch (TimeoutException) { return false; }
+            catch (IOException) { return false; }
+        }
+
+        /// <summary>
+        /// Ensures a hub instance is serving this driver's port. If the per-port
+        /// pipe is already reachable (a hub is connected to that focuser), returns
+        /// immediately. Otherwise launches a hub bound to the port and blocks
+        /// until its pipe appears, or fails with guidance on timeout.
         /// </summary>
         private void EnsureMediatorAppRunning()
         {
+            // A hub may already be running + connected to this port.
+            if (TryProbePipe(300))
+            {
+                LogMessage("EnsureMediatorAppRunning", "Hub pipe for " + comPort + " already available");
+                return;
+            }
+
             LaunchMediatorApp();
 
-            // Wait for the pipe to become available
+            // Wait for the launched hub to connect and create its pipe.
             int retries = 30; // 30 * 500ms = 15 seconds
             while (retries > 0)
             {
-                // If the mediator process has exited (user closed it), fail immediately
-                var processes = Process.GetProcessesByName(MEDIATOR_PROCESS_NAME);
-                if (processes.Length == 0)
+                if (TryProbePipe(500))
                 {
-                    throw new DriverException(
-                        "The DeFocuser Lite Controller was closed. " +
-                        "Please connect to the focuser in the Controller app before connecting in N.I.N.A.");
+                    LogMessage("EnsureMediatorAppRunning", "Hub pipe for " + comPort + " is available");
+                    return;
                 }
-
-                try
-                {
-                    using (var testPipe = new NamedPipeClientStream(".", PIPE_NAME, PipeDirection.InOut))
-                    {
-                        testPipe.Connect(500);
-                        LogMessage("EnsureMediatorAppRunning", "Mediator pipe is available");
-                        return; // Pipe is available
-                    }
-                }
-                catch (TimeoutException) { }
-                catch (IOException) { }
 
                 retries--;
                 Thread.Sleep(100);
             }
 
             throw new DriverException(
-                "The DeFocuser Lite Controller is running but not connected to the focuser. " +
-                "Please select a COM port and click Connect in the Controller app first.");
+                "Timed out waiting for a DeFocuser Lite hub on " + comPort + ". " +
+                "Make sure the focuser is plugged into that port, or open the " +
+                "Controller app and connect to it manually.");
         }
 
         /// <summary>
