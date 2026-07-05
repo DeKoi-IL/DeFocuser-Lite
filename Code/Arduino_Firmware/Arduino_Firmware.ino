@@ -4,21 +4,33 @@
 
 #define DEBUG 0
 
+#define ESP32C3     1  // current SMD board: I2C pins (D4/GPIO6, D5/GPIO7) freed to header M2
+#define ESP32C3_OLD 2  // pre-rev board: STEP/DIR sat on the I2C pins
+#define ESP32S3     3
+
 #define MCU ESP32C3
 
 #if MCU == ESP32C3
+  #define EN_PIN    10  // Enable          (D10 / GPIO10)
+  #define DIR_PIN   4   // Direction       (D2  / GPIO4)
+  #define STEP_PIN  3   // Step            (D1  / GPIO3)
+  #define DIAG_PIN  2   // Stall detection (D0  / GPIO2)
+  #define SW_RX 20
+  #define SW_TX 21
+  #define BUTTON_PIN 9
+#elif MCU == ESP32C3_OLD
   #define EN_PIN    10  // Enable
-  #define DIR_PIN   7   // Direction
-  #define STEP_PIN  6   // Step
-  #define DIAG_PIN  4   // Stall detection
+  #define DIR_PIN   7   // Direction       (D5 / GPIO7 / SCL)
+  #define STEP_PIN  6   // Step            (D4 / GPIO6 / SDA)
+  #define DIAG_PIN  4   // Stall detection (D2 / GPIO4)
   #define SW_RX 20
   #define SW_TX 21
   #define BUTTON_PIN 9
 #elif MCU == ESP32S3
-  #define EN_PIN    9  // Enable
-  #define DIR_PIN   6   // Direction
-  #define STEP_PIN  5   // Step
-  #define DIAG_PIN  3   // Stall detection
+  #define EN_PIN    9   // Enable          (D10 / GPIO9)
+  #define DIR_PIN   3   // Direction       (D2  / GPIO3)
+  #define STEP_PIN  2   // Step            (D1  / GPIO2)
+  #define DIAG_PIN  1   // Stall detection (D0  / GPIO1)
   #define SW_RX 44
   #define SW_TX 43
   #define BUTTON_PIN 8
