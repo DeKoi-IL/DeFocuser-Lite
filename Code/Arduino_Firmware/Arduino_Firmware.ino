@@ -75,7 +75,7 @@ constexpr auto RESULT_PING = "RESULT:PING:OK:";
 
 constexpr auto COMMAND_INFO = "COMMAND:INFO";
 // build.ps1 patches the v__FIRMWARE_VERSION__ token in place before compile.
-constexpr auto RESULT_INFO = "RESULT:INFO:DeKoi's DeFocuser Lite Firmware v2.4.0";
+constexpr auto RESULT_INFO = "RESULT:INFO:DeKoi's DeFocuser Lite Firmware v2.4.1";
 
 // Lets the hub confirm which pinout is actually running before it offers a
 // firmware update, so a wrong pick in the MCU dropdown can be caught.

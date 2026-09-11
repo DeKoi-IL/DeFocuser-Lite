@@ -123,6 +123,7 @@
     <Compile Include="ViewModels\SettingsViewModel.cs" />
     <Compile Include="Services\AscomSlot.cs" />
     <Compile Include="Services\FirmwareBoards.cs" />
+    <Compile Include="Services\RunningAppsProbe.cs" />
     <Compile Include="Services\UpdateChecker.cs" />
     <Compile Include="Services\UpdateInstaller.cs" />
     <Compile Include="Services\FirmwareFlasher.cs" />

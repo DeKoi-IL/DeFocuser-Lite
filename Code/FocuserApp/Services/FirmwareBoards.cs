@@ -31,13 +31,13 @@ namespace ASCOM.DeKoi.DeFocuserApp.Services
 
     public static class FirmwareBoards
     {
-        // Pre-rev first: it is what every unit built before the SMD revision
-        // runs, so it is also the safest default for an unknown device.
+        // Old board first: it is what every unit built before the current
+        // revision runs, so it is also the safest default for an unknown device.
         public static readonly FirmwareBoard Esp32C3Old =
-            new FirmwareBoard("esp32c3-old", "XIAO ESP32-C3 (pre-rev board)", "esp32c3");
+            new FirmwareBoard("esp32c3-old", "XIAO ESP32-C3 (old)", "esp32c3");
 
         public static readonly FirmwareBoard Esp32C3 =
-            new FirmwareBoard("esp32c3", "XIAO ESP32-C3 (SMD board)", "esp32c3");
+            new FirmwareBoard("esp32c3", "XIAO ESP32-C3", "esp32c3");
 
         public static readonly FirmwareBoard Esp32S3 =
             new FirmwareBoard("esp32s3", "XIAO ESP32-S3", "esp32s3");

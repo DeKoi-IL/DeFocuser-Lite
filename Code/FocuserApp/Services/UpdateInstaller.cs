@@ -8,6 +8,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
@@ -67,6 +68,31 @@ namespace ASCOM.DeKoi.DeFocuserApp.Services
             }
 
             return path;
+        }
+
+        /// <summary>
+        /// Names the applications the silent installer is about to close and
+        /// asks permission. Returns true to proceed — including when nothing
+        /// else holds our files, in which case no prompt is shown.
+        /// </summary>
+        public static bool ConfirmAppsWillClose(System.Windows.Window owner = null)
+        {
+            var holders = RunningAppsProbe.ProcessesHoldingInstalledFiles();
+            if (holders.Count == 0) return true;
+
+            string message =
+                "These applications are using DeFocuser Lite and will be closed by the installer:\r\n\r\n"
+                + string.Join("\r\n", holders.Select(h => "    " + h))
+                + "\r\n\r\nClose them yourself first if they have unsaved work or a sequence running."
+                + "\r\n\r\nContinue with the update?";
+
+            var result = owner != null
+                ? System.Windows.MessageBox.Show(owner, message, "Update",
+                    System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning)
+                : System.Windows.MessageBox.Show(message, "Update",
+                    System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning);
+
+            return result == System.Windows.MessageBoxResult.Yes;
         }
 
         // Launches the installer with silent flags and asks WPF to shut down so

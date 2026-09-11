@@ -230,6 +230,11 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                 if (r != MessageBoxResult.Yes) return;
             }
 
+            // Separate from the check above: a client can be holding the driver
+            // DLL without an open pipe, and the silent installer closes it
+            // regardless.
+            if (!UpdateInstaller.ConfirmAppsWillClose()) return;
+
             IsChecking = true;
             Status = "Downloading...";
             try
