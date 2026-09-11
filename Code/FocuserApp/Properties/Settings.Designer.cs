@@ -73,6 +73,14 @@ namespace ASCOM.DeKoi.DeFocuserApp.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("1")]
+        public double StepMultiplier {
+            get { return ((double)(this["StepMultiplier"])); }
+            set { this["StepMultiplier"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("1180")]
         public double WindowWidth {
             get { return ((double)(this["WindowWidth"])); }

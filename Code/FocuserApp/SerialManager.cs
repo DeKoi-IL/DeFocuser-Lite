@@ -53,6 +53,9 @@ namespace ASCOM.DeKoi.DeFocuserApp
         private const string COMMAND_FOCUSER_GETMAXPOSITION = "COMMAND:FOCUSER:GETMAXPOSITION";
         private const string RESULT_FOCUSER_MAXPOSITION = "RESULT:FOCUSER:MAXPOSITION:";
 
+        private const string COMMAND_FOCUSER_SETMAXPOSITION = "COMMAND:FOCUSER:SETMAXPOSITION:";
+        private const string RESULT_FOCUSER_SETMAXPOSITION = "RESULT:FOCUSER:SETMAXPOSITION:";
+
         private const string COMMAND_FOCUSER_ISMOVING = "COMMAND:FOCUSER:ISMOVING";
         private const string RESULT_FOCUSER_ISMOVING = "RESULT:FOCUSER:ISMOVING:";
 
@@ -321,6 +324,13 @@ namespace ASCOM.DeKoi.DeFocuserApp
         {
             string response = SendCommandToDevice(COMMAND_FOCUSER_GETMAXPOSITION, RESULT_FOCUSER_MAXPOSITION);
             return int.Parse(response);
+        }
+
+        public void SetMaxPosition(int maxPosition)
+        {
+            string response = SendCommandToDevice(COMMAND_FOCUSER_SETMAXPOSITION + maxPosition.ToString(), RESULT_FOCUSER_SETMAXPOSITION);
+            if (response != OK)
+                throw new ASCOM.DriverException("SetMaxPosition command failed.");
         }
 
         public bool GetIsMoving()

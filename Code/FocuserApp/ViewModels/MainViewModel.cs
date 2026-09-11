@@ -83,12 +83,13 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         public int Position
         {
             get => position;
-            private set
+            set
             {
-                if (SetField(ref position, value))
+                if (SetField(ref position, Math.Max(0, value)))
                 {
                     OnPropertyChanged(nameof(PercentOfTravel));
                     OnPropertyChanged(nameof(DeltaSteps));
+                    PushPosition(position);
                 }
             }
         }
@@ -97,13 +98,55 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         public int MaxPosition
         {
             get => maxPosition;
-            private set
+            set
             {
-                if (SetField(ref maxPosition, value))
+                if (SetField(ref maxPosition, Math.Max(1, value)))
                 {
                     OnPropertyChanged(nameof(PercentOfTravel));
+                    PushMaxPosition(maxPosition);
                 }
             }
+        }
+
+        // Device-sourced updates bypass the public setters so a polled value
+        // never gets echoed straight back to the firmware as a manual set.
+        private void SetPositionFromDevice(int value)
+        {
+            if (position == value) return;
+            position = value;
+            OnPropertyChanged(nameof(Position));
+            OnPropertyChanged(nameof(PercentOfTravel));
+            OnPropertyChanged(nameof(DeltaSteps));
+        }
+
+        private void SetMaxPositionFromDevice(int value)
+        {
+            if (maxPosition == value) return;
+            maxPosition = value;
+            OnPropertyChanged(nameof(MaxPosition));
+            OnPropertyChanged(nameof(PercentOfTravel));
+        }
+
+        private void PushPosition(int value)
+        {
+            if (!isConnected) return;
+            try
+            {
+                serial.SetPosition(value);
+                Log(LogKind.Ok, "Position set to " + value);
+            }
+            catch (Exception ex) { Log(LogKind.Err, "SetPosition failed: " + ex.Message); }
+        }
+
+        private void PushMaxPosition(int value)
+        {
+            if (!isConnected) return;
+            try
+            {
+                serial.SetMaxPosition(value);
+                Log(LogKind.Ok, "Max travel set to " + value);
+            }
+            catch (Exception ex) { Log(LogKind.Err, "SetMaxPosition failed: " + ex.Message); }
         }
 
         private int target;
@@ -141,15 +184,41 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             {
                 if (SetField(ref stepSize, value))
                 {
-                    OnPropertyChanged(nameof(StepSizeX10));
+                    OnPropertyChanged(nameof(EffectiveStepSize));
+                    OnPropertyChanged(nameof(EffectiveStepSizeX10));
                 }
             }
         }
 
+        public const double StepMultiplierMin = 0.01;
+
+        private double stepMultiplier = 1.0;
+        public double StepMultiplier
+        {
+            get => stepMultiplier;
+            set
+            {
+                if (SetField(ref stepMultiplier, Math.Max(StepMultiplierMin, value)))
+                {
+                    OnPropertyChanged(nameof(EffectiveStepSize));
+                    OnPropertyChanged(nameof(EffectiveStepSizeX10));
+                    PersistSetting(() => Settings.Default.StepMultiplier = stepMultiplier);
+                }
+            }
+        }
+
+        // Every jog/stepper distance is the selected step size times the
+        // multiplier, rounded and floored at one step so a small multiplier
+        // can never turn a jog into a no-op.
+        private int ScaledSteps(int units) =>
+            Math.Max(1, (int)Math.Round(stepSize * units * stepMultiplier));
+
+        public int EffectiveStepSize => ScaledSteps(1);
+
         // Pre-computed 10x value for « / » jog button labels. Avoids
         // string-appending "0" to a thousands-formatted string (which
         // produced bugs like "1,0000" when StepSize was 1000).
-        public int StepSizeX10 => stepSize * 10;
+        public int EffectiveStepSizeX10 => ScaledSteps(10);
 
         public int StallThresholdMin => SerialManager.StallThresholdMin;
         public int StallThresholdMax => SerialManager.StallThresholdMax;
@@ -625,8 +694,8 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                 _ => SendManualAsync().ConfigureAwait(false),
                 _ => isConnected && !string.IsNullOrWhiteSpace(manualCommandText));
             ToggleConsoleCommand = new RelayCommand(_ => ShowConsole = !ShowConsole);
-            TargetIncrementCommand = new RelayCommand(_ => Target = Math.Min(maxPosition <= 0 ? int.MaxValue : maxPosition, target + stepSize));
-            TargetDecrementCommand = new RelayCommand(_ => Target = Math.Max(0, target - stepSize));
+            TargetIncrementCommand = new RelayCommand(_ => Target = Math.Min(maxPosition <= 0 ? int.MaxValue : maxPosition, target + EffectiveStepSize));
+            TargetDecrementCommand = new RelayCommand(_ => Target = Math.Max(0, target - EffectiveStepSize));
 
             pollTimer = new DispatcherTimer(DispatcherPriority.Background)
             {
@@ -635,6 +704,7 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             pollTimer.Tick += (s, e) => PollDevice();
 
             backlashCompensation = Settings.Default.BacklashCompensation;
+            stepMultiplier = Math.Max(StepMultiplierMin, Settings.Default.StepMultiplier);
             autoConnectOnOpen = Settings.Default.AutoConnectOnStartup;
             connectionExpanded = Settings.Default.ConnectionExpanded;
             settingsExpanded = Settings.Default.SettingsExpanded;
@@ -803,8 +873,8 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                     FirmwareVersion = ParseFirmwareVersion(info);
                 }
 
-                Position = p;
-                MaxPosition = m;
+                SetPositionFromDevice(p);
+                SetMaxPositionFromDevice(m);
                 Target = p;
                 reverse = rev;
                 OnPropertyChanged(nameof(Reverse));
@@ -941,8 +1011,8 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                     int m = serial.GetMaxPosition();
                     uiDispatcher.BeginInvoke(new Action(() =>
                     {
-                        Position = p;
-                        MaxPosition = m;
+                        SetPositionFromDevice(p);
+                        SetMaxPositionFromDevice(m);
                         IsMoving = moving;
                         IsCalibrating = calib;
                     }));
@@ -1013,7 +1083,7 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
 
                     uiDispatcher.BeginInvoke(new Action(() =>
                     {
-                        Position = p;
+                        SetPositionFromDevice(p);
                         IsMoving = moving;
                     }));
 
@@ -1034,7 +1104,8 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             }
             else if (parameter is int i) multiplier = i;
 
-            int delta = stepSize * multiplier;
+            int magnitude = ScaledSteps(Math.Abs(multiplier));
+            int delta = multiplier < 0 ? -magnitude : magnitude;
             int destination = position + delta;
             if (maxPosition > 0) destination = Math.Min(maxPosition, Math.Max(0, destination));
             else destination = Math.Max(0, destination);
@@ -1094,7 +1165,7 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
 
                         uiDispatcher.BeginInvoke(new Action(() =>
                         {
-                            Position = p;
+                            SetPositionFromDevice(p);
                             IsCalibrating = calib;
                         }));
 

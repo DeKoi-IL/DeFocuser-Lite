@@ -275,7 +275,7 @@
             </Expander.Header>
 
             <StackPanel>
-              <!-- Max travel -->
+              <!-- Max travel: written straight to the device's stored limit. -->
               <Grid Margin="0,0,0,10">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="110" />
@@ -287,7 +287,28 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="60" />
                   </Grid.ColumnDefinitions>
-                  <TextBox IsReadOnly="True" Text="{Binding MaxPosition, Converter={StaticResource Thousands}, Mode=OneWay}" />
+                  <TextBox Text="{Binding MaxPosition, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                           IsEnabled="{Binding IsConnected}"
+                           ToolTip="Total travel in steps. Applied to the focuser as soon as the field loses focus." />
+                  <TextBlock Grid.Column="1" Text="steps" Style="{StaticResource MutedText}" Margin="8,0,0,0" />
+                </Grid>
+              </Grid>
+
+              <!-- Current position: re-labels where the focuser thinks it is. -->
+              <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="110" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Position" Style="{StaticResource FieldLabel}" />
+                <Grid Grid.Column="1">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="60" />
+                  </Grid.ColumnDefinitions>
+                  <TextBox Text="{Binding Position, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                           IsEnabled="{Binding IsConnected}"
+                           ToolTip="Current step count. Setting it re-labels the position without moving the motor." />
                   <TextBlock Grid.Column="1" Text="steps" Style="{StaticResource MutedText}" Margin="8,0,0,0" />
                 </Grid>
               </Grid>
@@ -574,6 +595,20 @@
                 </ListBox>
               </Grid>
 
+              <!-- Step multiplier: scales every jog + target stepper distance -->
+              <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="96" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Step multiplier" Style="{StaticResource MutedText}" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1"
+                         Text="{Binding StepMultiplier, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                         HorizontalContentAlignment="Center"
+                         FontFamily="{StaticResource MonoFont}"
+                         ToolTip="Multiplies the step size used by the jog buttons and the target stepper. Minimum 0.01." />
+              </Grid>
+
               <!-- Jog buttons -->
               <Grid>
                 <Grid.ColumnDefinitions>
@@ -593,7 +628,7 @@
                                Foreground="{StaticResource TextBrush}" FontFamily="{StaticResource MonoFont}" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,0">
                       <TextBlock Text="−" Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
-                      <TextBlock Text="{Binding StepSizeX10, Converter={StaticResource Thousands}}"
+                      <TextBlock Text="{Binding EffectiveStepSizeX10, Converter={StaticResource Thousands}}"
                                  Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
                     </StackPanel>
                   </StackPanel>
@@ -606,7 +641,7 @@
                                Foreground="{StaticResource TextBrush}" FontFamily="{StaticResource MonoFont}" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,0">
                       <TextBlock Text="−" Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
-                      <TextBlock Text="{Binding StepSize, Converter={StaticResource Thousands}}"
+                      <TextBlock Text="{Binding EffectiveStepSize, Converter={StaticResource Thousands}}"
                                  Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
                     </StackPanel>
                   </StackPanel>
@@ -619,7 +654,7 @@
                                Foreground="{StaticResource TextBrush}" FontFamily="{StaticResource MonoFont}" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,0">
                       <TextBlock Text="+" Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
-                      <TextBlock Text="{Binding StepSize, Converter={StaticResource Thousands}}"
+                      <TextBlock Text="{Binding EffectiveStepSize, Converter={StaticResource Thousands}}"
                                  Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
                     </StackPanel>
                   </StackPanel>
@@ -632,7 +667,7 @@
                                Foreground="{StaticResource TextBrush}" FontFamily="{StaticResource MonoFont}" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,0">
                       <TextBlock Text="+" Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
-                      <TextBlock Text="{Binding StepSizeX10, Converter={StaticResource Thousands}}"
+                      <TextBlock Text="{Binding EffectiveStepSizeX10, Converter={StaticResource Thousands}}"
                                  Foreground="{StaticResource Text2Brush}" FontSize="13" FontFamily="{StaticResource MonoFont}" />
                     </StackPanel>
                   </StackPanel>

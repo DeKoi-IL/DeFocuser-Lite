@@ -4,6 +4,9 @@
 
 #define DEBUG 0
 
+// Board select. Bare tokens need distinct values, otherwise the #if/#elif
+// comparisons below all collapse to 0 == 0 (undefined identifier -> 0) and
+// the first branch always wins regardless of what MCU is set to.
 #define ESP32C3     1  // current SMD board: I2C pins (D4/GPIO6, D5/GPIO7) freed to header M2
 #define ESP32C3_OLD 2  // pre-rev board: STEP/DIR sat on the I2C pins
 #define ESP32S3     3
@@ -61,13 +64,16 @@ constexpr auto RESULT_PING = "RESULT:PING:OK:";
 
 constexpr auto COMMAND_INFO = "COMMAND:INFO";
 // build.ps1 patches the v__FIRMWARE_VERSION__ token in place before compile.
-constexpr auto RESULT_INFO = "RESULT:INFO:DeKoi's DeFocuser Lite Firmware v2.2.0";
+constexpr auto RESULT_INFO = "RESULT:INFO:DeKoi's DeFocuser Lite Firmware v2.3.0";
 
 constexpr auto COMMAND_FOCUSER_GETPOSITION = "COMMAND:FOCUSER:GETPOSITION";
 constexpr auto RESULT_FOCUSER_POSITION = "RESULT:FOCUSER:POSITION:";
 
 constexpr auto COMMAND_FOCUSER_GETMAXPOSITION = "COMMAND:FOCUSER:GETMAXPOSITION";
 constexpr auto RESULT_FOCUSER_MAXPOSITION = "RESULT:FOCUSER:MAXPOSITION:";
+
+constexpr auto COMMAND_FOCUSER_SETMAXPOSITION = "COMMAND:FOCUSER:SETMAXPOSITION:";
+constexpr auto RESULT_FOCUSER_SETMAXPOSITION = "RESULT:FOCUSER:SETMAXPOSITION:";
 
 constexpr auto COMMAND_FOCUSER_SETPOSITION = "COMMAND:FOCUSER:SETPOSITION:";
 constexpr auto RESULT_FOCUSER_SETPOSITION = "RESULT:FOCUSER:SETPOSITION:";
@@ -250,6 +256,7 @@ uint32_t lerpClamped(uint32_t a, uint32_t b, float t);
 bool moveFocuser(long target_position);
 void haltFocuser();
 void setLimitFocuser();
+void setMaxPosition(long value);
 
 void applySpeedFactor();
 void sendSpeed();
@@ -569,6 +576,11 @@ bool HandleBlockingCommand(String command)
     String arg = command.substring(strlen(COMMAND_FOCUSER_SETPOSITION));
     int value = arg.toInt();
     setFocuserPosition(value);
+  }
+  else if (command.startsWith(COMMAND_FOCUSER_SETMAXPOSITION))
+  {
+    String arg = command.substring(strlen(COMMAND_FOCUSER_SETMAXPOSITION));
+    setMaxPosition(arg.toInt());
   }
   else if (command == COMMAND_FOCUSER_SETZEROPOSITION) 
   {
@@ -1048,6 +1060,30 @@ void setFocuserPosition(int target_position)
         // Cannot set position while focuser is still moving...
         Serial.println(MSG_NOK);
     }
+}
+
+void setMaxPosition(long value)
+{
+    Serial.print(RESULT_FOCUSER_SETMAXPOSITION);
+    if (steps_left != 0 || value < 1) {
+        // Cannot redefine the travel limit while the focuser is still moving.
+        Serial.println(MSG_NOK);
+        return;
+    }
+
+    max_steps = static_cast<uint32_t>(value);
+    EEPROM.put(EEPROM_MAX_STEPS_BASE_ADDR, max_steps);
+
+    // Shrinking the limit can leave the carriage past the new end stop —
+    // pull the stored position back in range so moves stay bounded.
+    if (position > max_steps) {
+        position = max_steps;
+        EEPROM.put(EEPROM_POSITION_BASE_ADDR, position);
+    }
+
+    Serial.println(MSG_OK);
+
+    EEPROM.commit();
 }
 
 bool moveFocuser(long target_position)
