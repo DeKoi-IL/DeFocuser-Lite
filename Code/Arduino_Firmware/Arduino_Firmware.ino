@@ -11,7 +11,10 @@
 #define ESP32C3_OLD 2  // pre-rev board: STEP/DIR sat on the I2C pins
 #define ESP32S3     3
 
-#define MCU ESP32C3
+// Released firmware targets the pre-rev board: every unit in the field
+// predates the SMD revision. Switch to ESP32C3 by hand for a new board until
+// the hub can ask which one you have and flash the matching build.
+#define MCU ESP32C3_OLD
 
 #if MCU == ESP32C3
   #define EN_PIN    10  // Enable          (D10 / GPIO10)
@@ -64,7 +67,7 @@ constexpr auto RESULT_PING = "RESULT:PING:OK:";
 
 constexpr auto COMMAND_INFO = "COMMAND:INFO";
 // build.ps1 patches the v__FIRMWARE_VERSION__ token in place before compile.
-constexpr auto RESULT_INFO = "RESULT:INFO:DeKoi's DeFocuser Lite Firmware v2.3.0";
+constexpr auto RESULT_INFO = "RESULT:INFO:DeKoi's DeFocuser Lite Firmware v2.3.1";
 
 constexpr auto COMMAND_FOCUSER_GETPOSITION = "COMMAND:FOCUSER:GETPOSITION";
 constexpr auto RESULT_FOCUSER_POSITION = "RESULT:FOCUSER:POSITION:";
