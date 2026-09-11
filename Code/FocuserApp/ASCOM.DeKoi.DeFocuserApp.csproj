@@ -121,6 +121,7 @@
     <Compile Include="ViewModels\ObservableObject.cs" />
     <Compile Include="ViewModels\Converters.cs" />
     <Compile Include="ViewModels\SettingsViewModel.cs" />
+    <Compile Include="Services\AscomSlot.cs" />
     <Compile Include="Services\FirmwareBoards.cs" />
     <Compile Include="Services\UpdateChecker.cs" />
     <Compile Include="Services\UpdateInstaller.cs" />

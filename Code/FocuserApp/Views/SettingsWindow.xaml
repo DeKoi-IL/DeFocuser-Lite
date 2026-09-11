@@ -176,6 +176,36 @@
             </StackPanel>
           </Border>
 
+          <!-- ASCOM section. The driver's own Setup dialog is gone; what little
+               it configured lives here. -->
+          <Border Background="{StaticResource PanelBrush}"
+                  BorderBrush="{StaticResource LineBrush}"
+                  BorderThickness="1" CornerRadius="10"
+                  Padding="14" Margin="0,0,0,14">
+            <StackPanel>
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <Path Data="{StaticResource Icon.Plug}" Style="{StaticResource HeaderIconPath}" />
+                <TextBlock Text="ASCOM" Style="{StaticResource CardLabel}" Margin="9,0,0,0" />
+              </StackPanel>
+              <TextBlock Text="Clients such as N.I.N.A. talk to whichever hub has claimed the ASCOM slot. Claim it from the Connection panel on the main window."
+                         Style="{StaticResource MutedText}"
+                         TextWrapping="Wrap"
+                         Margin="0,0,0,12" />
+
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="160" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Driver trace log" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
+                <CheckBox Grid.Column="1"
+                          Content="Write ASCOM driver trace files"
+                          IsChecked="{Binding DriverTraceEnabled, Mode=TwoWay}"
+                          VerticalAlignment="Center" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
           <!-- Stall detection section -->
           <Border Background="{StaticResource PanelBrush}"
                   BorderBrush="{StaticResource LineBrush}"

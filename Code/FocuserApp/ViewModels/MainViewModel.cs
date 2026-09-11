@@ -71,6 +71,8 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                     OnPropertyChanged(nameof(IsDisconnected));
                     OnPropertyChanged(nameof(DeviceBoardDisplay));
                     OnPropertyChanged(nameof(BoardMismatch));
+                    OnPropertyChanged(nameof(OwnsAscomSlot));
+                    OnPropertyChanged(nameof(AscomSlotDisplay));
                     System.Windows.Input.CommandManager.InvalidateRequerySuggested();
                 }
             }
@@ -690,6 +692,12 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         public event EventHandler LogAppended;
         public event EventHandler LogCleared;
 
+        /// <summary>
+        /// An ASCOM client asked (over the pipe) for this hub's window. Already
+        /// marshalled to the UI thread.
+        /// </summary>
+        public event EventHandler ShowRequested;
+
         public RelayCommand ConnectCommand { get; }
         public RelayCommand DisconnectCommand { get; }
         public RelayCommand AutoDetectCommand { get; }
@@ -731,6 +739,7 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             serial.SerialTraffic += OnSerialTraffic;
             serial.ConnectionStateChanged += OnConnectionStateChanged;
             pipes.ClientCountChanged += OnPipeClientCountChanged;
+            pipes.ShowRequested += OnPipeShowRequested;
 
             ConnectCommand = new RelayCommand(_ => ConnectAsync().ConfigureAwait(false), _ => !isConnected);
             DisconnectCommand = new RelayCommand(_ => DisconnectAsync().ConfigureAwait(false), _ => isConnected);
@@ -753,6 +762,8 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                 _ => SendManualAsync().ConfigureAwait(false),
                 _ => isConnected && !string.IsNullOrWhiteSpace(manualCommandText));
             ToggleConsoleCommand = new RelayCommand(_ => ShowConsole = !ShowConsole);
+            ClaimAscomSlotCommand = new RelayCommand(_ => ClaimAscomSlot(),
+                                                      _ => isConnected && !OwnsAscomSlot);
             TargetIncrementCommand = new RelayCommand(_ => Target = Math.Min(maxPosition <= 0 ? int.MaxValue : maxPosition, target + EffectiveStepSize));
             TargetDecrementCommand = new RelayCommand(_ => Target = Math.Max(0, target - EffectiveStepSize));
 
@@ -866,6 +877,19 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
 
                 IsConnected = true;
                 Log(LogKind.Ok, "Connected on " + serial.ConnectedPortName);
+
+                // Re-read rather than trust the cached value: another hub may
+                // have claimed the slot since this one started.
+                AscomClaimedPort = AscomSlot.GetClaimedPort();
+                OnPropertyChanged(nameof(OwnsAscomSlot));
+                OnPropertyChanged(nameof(AscomSlotDisplay));
+
+                // Nothing has claimed the slot yet — the first hub to connect
+                // takes it, so a single-focuser setup needs no configuration.
+                if (string.IsNullOrEmpty(ascomClaimedPort))
+                {
+                    ClaimAscomSlot();
+                }
 
                 await RefreshDeviceStateAsync();
                 pollTimer.Start();
@@ -1375,6 +1399,15 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                 uiDispatcher.BeginInvoke(new Action(() => IsConnected = connected));
         }
 
+        private void OnPipeShowRequested()
+        {
+            uiDispatcher.BeginInvoke(new Action(() =>
+            {
+                Log(LogKind.Info, "ASCOM client requested the hub window");
+                ShowRequested?.Invoke(this, EventArgs.Empty);
+            }));
+        }
+
         private int lastClientCount;
         private void OnPipeClientCountChanged(int count)
         {
@@ -1382,6 +1415,55 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             {
                 Log(LogKind.Info, "ASCOM clients: " + count);
                 lastClientCount = count;
+            }
+        }
+
+        // ---- ASCOM slot ----
+        // The driver no longer has a port picker; it reads the port out of its
+        // ASCOM Profile. This is where that value gets set, so whichever hub
+        // claims the slot is the one ASCOM clients talk to.
+        private string ascomClaimedPort = AscomSlot.GetClaimedPort();
+        public string AscomClaimedPort
+        {
+            get => ascomClaimedPort;
+            private set
+            {
+                if (SetField(ref ascomClaimedPort, value))
+                {
+                    OnPropertyChanged(nameof(OwnsAscomSlot));
+                    OnPropertyChanged(nameof(AscomSlotDisplay));
+                }
+            }
+        }
+
+        public bool OwnsAscomSlot =>
+            !string.IsNullOrEmpty(serial.ConnectedPortName)
+            && string.Equals(ascomClaimedPort, serial.ConnectedPortName, StringComparison.OrdinalIgnoreCase);
+
+        public string AscomSlotDisplay =>
+            string.IsNullOrEmpty(ascomClaimedPort)
+                ? "No hub claimed — ASCOM clients will use the only running hub"
+                : "ASCOM clients use " + ascomClaimedPort;
+
+        public RelayCommand ClaimAscomSlotCommand { get; }
+
+        private void ClaimAscomSlot()
+        {
+            string port = serial.ConnectedPortName;
+            if (string.IsNullOrEmpty(port))
+            {
+                Log(LogKind.Warn, "Connect first — the ASCOM slot is claimed for the connected port");
+                return;
+            }
+
+            if (AscomSlot.ClaimPort(port))
+            {
+                AscomClaimedPort = port;
+                Log(LogKind.Ok, "ASCOM clients now use this hub (" + port + ")");
+            }
+            else
+            {
+                Log(LogKind.Err, "Could not write the ASCOM profile — is the driver registered?");
             }
         }
 

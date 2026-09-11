@@ -58,6 +58,13 @@ namespace ASCOM.DeKoi.DeFocuserApp
 
         public event Action<int> ClientCountChanged;
 
+        /// <summary>
+        /// Raised when a driver asks this hub to come to the foreground —
+        /// the ASCOM client's Setup button, which no longer opens a dialog of
+        /// its own. Fired on a pipe worker thread; marshal before touching UI.
+        /// </summary>
+        public event Action ShowRequested;
+
         public PipeServer(SerialManager serialManager)
         {
             this.serialManager = serialManager;
@@ -241,6 +248,12 @@ namespace ASCOM.DeKoi.DeFocuserApp
             if (command == "IPC:DISCONNECT")
             {
                 return "IPC:DISCONNECT:OK";
+            }
+
+            if (command == "IPC:SHOW")
+            {
+                try { ShowRequested?.Invoke(); } catch { }
+                return "IPC:SHOW:OK";
             }
 
             if (command == "IPC:ISCONNECTED")

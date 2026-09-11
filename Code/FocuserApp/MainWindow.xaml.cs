@@ -37,6 +37,7 @@ namespace ASCOM.DeKoi.DeFocuserApp
             vm.LogAppended += Vm_LogAppended;
             vm.LogCleared += Vm_LogCleared;
             vm.PropertyChanged += Vm_PropertyChanged;
+            vm.ShowRequested += Vm_ShowRequested;
 
             RestoreWindowPlacement();
             BuildTrayIcon();
@@ -44,6 +45,19 @@ namespace ASCOM.DeKoi.DeFocuserApp
             Loaded += OnLoaded;
             Closing += OnClosing;
             Closed += OnClosedWindow;
+        }
+
+        // Driver's Setup button lands here: un-minimise, un-tray, raise. The
+        // hub is the only window an ASCOM client should ever show for setup.
+        private void Vm_ShowRequested(object sender, EventArgs e)
+        {
+            Show();
+            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+            ShowInTaskbar = true;
+            Activate();
+            Topmost = true;
+            Topmost = false;
+            Focus();
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)

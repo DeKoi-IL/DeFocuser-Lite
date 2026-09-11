@@ -254,6 +254,24 @@
                         Command="{Binding DisconnectCommand}"
                         Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}">Disconnect</Button>
               </StackPanel>
+
+              <!-- ASCOM slot. The driver has no port picker any more, so this
+                   is where you say which hub NINA & co. should talk to. -->
+              <Grid Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Text="ASCOM" Style="{StaticResource SubLabel}" Margin="0,0,0,2" />
+                  <TextBlock Text="{Binding AscomSlotDisplay}" Style="{StaticResource MutedText}"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+                <Button Grid.Column="1" Style="{StaticResource SmButton}" Margin="8,0,0,0"
+                        Command="{Binding ClaimAscomSlotCommand}"
+                        Content="Use this hub"
+                        ToolTip="Point the ASCOM driver at this hub's COM port" />
+              </Grid>
             </StackPanel>
           </Expander>
 

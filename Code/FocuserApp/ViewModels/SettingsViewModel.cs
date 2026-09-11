@@ -97,6 +97,21 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         public string DeviceBoardDisplay => mainVm.DeviceBoardDisplay;
         public bool BoardMismatch => mainVm.BoardMismatch;
 
+        // Lived in the driver's Setup dialog until that was removed; the ASCOM
+        // Profile is still the storage, the hub is just the UI for it now.
+        private bool driverTraceEnabled = AscomSlot.GetTraceEnabled();
+        public bool DriverTraceEnabled
+        {
+            get => driverTraceEnabled;
+            set
+            {
+                if (SetField(ref driverTraceEnabled, value))
+                {
+                    AscomSlot.SetTraceEnabled(value);
+                }
+            }
+        }
+
         public int StallThresholdMin => mainVm.StallThresholdMin;
         public int StallThresholdMax => mainVm.StallThresholdMax;
         public int StallThreshold

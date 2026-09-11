@@ -167,19 +167,25 @@ namespace ASCOM.DeKoi
         #region Common properties and methods.
 
         /// <summary>
-        /// Displays the Setup Dialog form so the user can pick which focuser
-        /// (by COM port) this driver instance connects to, plus the trace level.
-        /// The chosen port selects the matching hub instance / pipe at Connect.
+        /// Brings up the hub, which is where every setting lives now — port,
+        /// speed, stall tuning, firmware. The driver has nothing of its own to
+        /// configure, so it deliberately shows no dialog of its own: an ASCOM
+        /// client's Setup button should only ever surface the hub window.
         /// </summary>
         public void SetupDialog()
         {
-            using (var setupForm = new FocuserSetupDialogForm(this))
+            string port = HubGateway.ResolvePort(comPort, out _);
+
+            // A hub that is already running just needs raising.
+            if (!string.IsNullOrWhiteSpace(port) && HubGateway.TryShowHubWindow(port))
             {
-                if (setupForm.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-                {
-                    WriteProfile();
-                }
+                LogMessage("SetupDialog", "Raised running hub for " + port);
+                return;
             }
+
+            // Otherwise start one. Without a known port it comes up unbound and
+            // the user picks there, which is the point of the redesign.
+            LaunchMediatorApp(port);
         }
 
         public ArrayList SupportedActions
@@ -327,19 +333,32 @@ namespace ASCOM.DeKoi
 
                 if (value)
                 {
-                    LogMessage("Connected Set", "Connecting to mediator app on " + comPort);
+                    // 1. Work out which hub to talk to. The hub writes its port
+                    //    into our Profile when it claims the ASCOM slot; if that
+                    //    hub isn't up we fall back to the only one running.
+                    string resolved = HubGateway.ResolvePort(comPort, out var ambiguous);
 
-                    if (string.IsNullOrWhiteSpace(comPort))
+                    if (ambiguous != null)
                     {
                         throw new NotConnectedException(
-                            "No focuser COM port selected. Open this driver's Properties/Setup " +
-                            "and choose the COM port your DeFocuser is on.");
+                            "Several DeFocuser hubs are running (" + string.Join(", ", ambiguous) + ") and none " +
+                            "is claimed for ASCOM. Open the hub for the focuser you want and click " +
+                            "\"Use this hub\" in its Connection panel.");
                     }
 
-                    // 1. Launch the hub for this port if it isn't already serving it
+                    if (!string.IsNullOrWhiteSpace(resolved) && !string.Equals(resolved, comPort, StringComparison.OrdinalIgnoreCase))
+                    {
+                        LogMessage("Connected Set", "Adopting hub on " + resolved);
+                        comPort = resolved;
+                        WriteProfile();
+                    }
+
+                    LogMessage("Connected Set", "Connecting to mediator app on " + comPort);
+
+                    // 2. Launch the hub if nothing is serving that port yet
                     EnsureMediatorAppRunning();
 
-                    // 2. Connect to the per-port named pipe
+                    // 3. Connect to the per-port named pipe
                     try
                     {
                         pipeClient = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut);
@@ -358,7 +377,7 @@ namespace ASCOM.DeKoi
                         throw new NotConnectedException("Failed to connect to the DeFocuser Lite Mediator: " + ex.Message);
                     }
 
-                    // 3. Register as client
+                    // 4. Register as client
                     string registerResponse = SendPipeCommand("IPC:CONNECT");
                     if (registerResponse != "IPC:CONNECT:OK")
                     {
@@ -366,7 +385,7 @@ namespace ASCOM.DeKoi
                         throw new NotConnectedException("Failed to register with the mediator application.");
                     }
 
-                    // 4. Verify device connectivity
+                    // 5. Verify device connectivity
                     string connResponse = SendPipeCommand("IPC:ISCONNECTED");
                     if (connResponse != "IPC:ISCONNECTED:TRUE")
                     {
@@ -694,8 +713,13 @@ namespace ASCOM.DeKoi
         /// Launches a hub instance bound to <see cref="comPort"/> via "--port COMx",
         /// so it auto-connects to that focuser and serves the matching pipe.
         /// </summary>
-        private void LaunchMediatorApp()
+        // A null/empty port launches the hub unbound, so the user can pick the
+        // focuser there. That's the path taken by Setup before any hub has
+        // claimed the ASCOM slot.
+        private void LaunchMediatorApp(string portName = null)
         {
+            string port = portName ?? comPort;
+
             string driverDir = Path.GetDirectoryName(
                 System.Reflection.Assembly.GetExecutingAssembly().Location);
             string appPath = Path.Combine(driverDir, MEDIATOR_PROCESS_NAME + ".exe");
@@ -705,11 +729,11 @@ namespace ASCOM.DeKoi
                 throw new DriverException("DeFocuser Lite Mediator application not found at: " + appPath);
             }
 
-            LogMessage("LaunchMediatorApp", "Launching hub for " + comPort + " from: " + appPath);
+            LogMessage("LaunchMediatorApp", "Launching hub for " + (port ?? "(unbound)") + " from: " + appPath);
             Process.Start(new ProcessStartInfo
             {
                 FileName = appPath,
-                Arguments = "--port " + comPort,
+                Arguments = string.IsNullOrWhiteSpace(port) ? string.Empty : "--port " + port,
                 UseShellExecute = true
             });
         }
