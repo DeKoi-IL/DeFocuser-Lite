@@ -47,6 +47,9 @@ namespace ASCOM.DeKoi.DeFocuserApp
         private const string COMMAND_INFO = "COMMAND:INFO";
         private const string RESULT_INFO_PREFIX = "RESULT:INFO:";
 
+        private const string COMMAND_FOCUSER_GETBOARD = "COMMAND:FOCUSER:GETBOARD";
+        private const string RESULT_FOCUSER_BOARD = "RESULT:FOCUSER:BOARD:";
+
         private const string COMMAND_FOCUSER_GETPOSITION = "COMMAND:FOCUSER:GETPOSITION";
         private const string RESULT_FOCUSER_POSITION = "RESULT:FOCUSER:POSITION:";
 
@@ -489,6 +492,15 @@ namespace ASCOM.DeKoi.DeFocuserApp
         {
             string response = SendCommandToDevice(COMMAND_FOCUSER_GETSTALLENABLED, RESULT_FOCUSER_GETSTALLENABLED);
             return response == TRUE;
+        }
+
+        // Board revision the running firmware was built for ("esp32c3-old", ...).
+        // Firmware older than 2.4.0 doesn't know this command and answers
+        // ERROR:INVALID_COMMAND, which surfaces here as a DriverException —
+        // callers treat that as "unknown board".
+        public string GetBoard()
+        {
+            return SendCommandToDevice(COMMAND_FOCUSER_GETBOARD, RESULT_FOCUSER_BOARD);
         }
 
         // Returns the firmware identification string (e.g. "DeKoi's DeFocuser Lite Firmware v1.0").

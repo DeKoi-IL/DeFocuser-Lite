@@ -225,6 +225,7 @@ namespace ASCOM.DeKoi.DeFocuserApp.Services
             string esptoolPath,
             string comPort,
             string binPath,
+            string esptoolChip,
             Action<FlashProgress> onLine,
             CancellationToken ct)
         {
@@ -234,9 +235,11 @@ namespace ASCOM.DeKoi.DeFocuserApp.Services
                 throw new ArgumentException("COM port is required", nameof(comPort));
             if (!File.Exists(binPath))
                 throw new FileNotFoundException("Firmware .bin not found", binPath);
+            if (string.IsNullOrEmpty(esptoolChip))
+                throw new ArgumentException("esptool chip is required", nameof(esptoolChip));
 
             var args =
-                "--chip esp32c3 " +
+                "--chip " + esptoolChip + " " +
                 "--port " + comPort + " " +
                 "--baud 921600 " +
                 "--before default_reset --after hard_reset " +

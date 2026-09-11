@@ -6,6 +6,7 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -29,6 +30,29 @@ namespace ASCOM.DeKoi.DeFocuserApp.Services
         public Version FirmwareVersion { get; set; }
         public string ReleaseNotes { get; set; }
         public string TagName { get; set; }
+
+        /// <summary>
+        /// Firmware download URLs keyed by board id ("esp32c3-old", ...).
+        /// Populated from the per-variant assets a 2.4.0+ release publishes.
+        /// </summary>
+        public Dictionary<string, string> FirmwareBinUrls { get; } =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// URL for the given board, falling back to the single unsuffixed asset
+        /// that releases up to 2.3.1 shipped.
+        /// </summary>
+        public string FirmwareUrlFor(string boardId)
+        {
+            if (!string.IsNullOrEmpty(boardId)
+                && FirmwareBinUrls.TryGetValue(boardId, out string url))
+            {
+                return url;
+            }
+            return FirmwareBinUrl;
+        }
+
+        public bool HasBoardSpecificFirmware => FirmwareBinUrls.Count > 0;
     }
 
     public static class UpdateChecker
@@ -89,10 +113,21 @@ namespace ASCOM.DeKoi.DeFocuserApp.Services
                         info.HubInstallerUrl = asset.browser_download_url;
                         info.HubInstallerSize = asset.size;
                     }
-                    else if (info.FirmwareBinUrl == null && IsFirmwareBin(n))
+                    else if (IsFirmwareBin(n))
                     {
-                        info.FirmwareBinUrl = asset.browser_download_url;
-                        info.FirmwareVersion = ParseFirmwareVersionFromAsset(n);
+                        // First firmware asset still wins for FirmwareBinUrl so
+                        // a release without per-board assets keeps working.
+                        if (info.FirmwareBinUrl == null)
+                        {
+                            info.FirmwareBinUrl = asset.browser_download_url;
+                            info.FirmwareVersion = ParseFirmwareVersionFromAsset(n);
+                        }
+
+                        string boardId = ParseBoardIdFromAsset(n);
+                        if (boardId != null && FirmwareBoards.Find(boardId) != null)
+                        {
+                            info.FirmwareBinUrls[boardId] = asset.browser_download_url;
+                        }
                     }
                 }
             }
@@ -128,6 +163,14 @@ namespace ASCOM.DeKoi.DeFocuserApp.Services
             if (string.IsNullOrEmpty(tag)) return null;
             string trimmed = tag.TrimStart('v', 'V');
             return TryParse(trimmed);
+        }
+
+        // "DeFocuser-Lite-Firmware-2.4.0-esp32c3-old.bin" -> "esp32c3-old".
+        // Returns null for the unsuffixed pre-2.4.0 naming.
+        private static string ParseBoardIdFromAsset(string name)
+        {
+            var m = Regex.Match(name, @"Firmware-\d+\.\d+(?:\.\d+)?-(.+)\.bin$", RegexOptions.IgnoreCase);
+            return m.Success ? m.Groups[1].Value : null;
         }
 
         private static Version ParseFirmwareVersionFromAsset(string name)

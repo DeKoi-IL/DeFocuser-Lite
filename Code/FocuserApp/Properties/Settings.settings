@@ -23,6 +23,9 @@
     <Setting Name="StepMultiplier" Type="System.Double" Scope="User">
       <Value Profile="(Default)">1</Value>
     </Setting>
+    <Setting Name="FirmwareBoard" Type="System.String" Scope="User">
+      <Value Profile="(Default)">esp32c3-old</Value>
+    </Setting>
     <Setting Name="WindowWidth" Type="System.Double" Scope="User">
       <Value Profile="(Default)">1180</Value>
     </Setting>

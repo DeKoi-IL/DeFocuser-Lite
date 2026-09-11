@@ -11,11 +11,16 @@
 #define ESP32C3_OLD 2  // pre-rev board: STEP/DIR sat on the I2C pins
 #define ESP32S3     3
 
-// Released firmware targets the pre-rev board: every unit in the field
-// predates the SMD revision. Switch to ESP32C3 by hand for a new board until
-// the hub can ask which one you have and flash the matching build.
-#define MCU ESP32C3_OLD
+// Default for a bare `arduino-cli compile`. build.ps1 passes -DMCU=... per
+// variant, so a release build never rewrites this file. The pre-rev board is
+// the default because every unit predating the SMD revision uses it.
+#ifndef MCU
+  #define MCU ESP32C3_OLD
+#endif
 
+// BOARD_ID is what the firmware reports over COMMAND:FOCUSER:GETBOARD and what
+// the release .bin is named after. Keep the three in sync: a mismatch is how
+// 2.3.0 shipped new-board pins to pre-rev hardware.
 #if MCU == ESP32C3
   #define EN_PIN    10  // Enable          (D10 / GPIO10)
   #define DIR_PIN   4   // Direction       (D2  / GPIO4)
@@ -24,6 +29,7 @@
   #define SW_RX 20
   #define SW_TX 21
   #define BUTTON_PIN 9
+  #define BOARD_ID "esp32c3"
 #elif MCU == ESP32C3_OLD
   #define EN_PIN    10  // Enable
   #define DIR_PIN   7   // Direction       (D5 / GPIO7 / SCL)
@@ -32,6 +38,7 @@
   #define SW_RX 20
   #define SW_TX 21
   #define BUTTON_PIN 9
+  #define BOARD_ID "esp32c3-old"
 #elif MCU == ESP32S3
   #define EN_PIN    9   // Enable          (D10 / GPIO9)
   #define DIR_PIN   3   // Direction       (D2  / GPIO3)
@@ -40,6 +47,7 @@
   #define SW_RX 44
   #define SW_TX 43
   #define BUTTON_PIN 8
+  #define BOARD_ID "esp32s3"
 #endif
 
 #define DRIVER_SERIAL_BAUD 57600
@@ -67,7 +75,12 @@ constexpr auto RESULT_PING = "RESULT:PING:OK:";
 
 constexpr auto COMMAND_INFO = "COMMAND:INFO";
 // build.ps1 patches the v__FIRMWARE_VERSION__ token in place before compile.
-constexpr auto RESULT_INFO = "RESULT:INFO:DeKoi's DeFocuser Lite Firmware v2.3.1";
+constexpr auto RESULT_INFO = "RESULT:INFO:DeKoi's DeFocuser Lite Firmware v2.4.0";
+
+// Lets the hub confirm which pinout is actually running before it offers a
+// firmware update, so a wrong pick in the MCU dropdown can be caught.
+constexpr auto COMMAND_FOCUSER_GETBOARD = "COMMAND:FOCUSER:GETBOARD";
+constexpr auto RESULT_FOCUSER_BOARD = "RESULT:FOCUSER:BOARD:";
 
 constexpr auto COMMAND_FOCUSER_GETPOSITION = "COMMAND:FOCUSER:GETPOSITION";
 constexpr auto RESULT_FOCUSER_POSITION = "RESULT:FOCUSER:POSITION:";
@@ -495,9 +508,13 @@ bool HandleFreeCommand(String command)
   {
     sendMaxPosition();
   }
-  else if (command == COMMAND_INFO) 
+  else if (command == COMMAND_INFO)
   {
     sendFirmwareInfo();
+  }
+  else if (command == COMMAND_FOCUSER_GETBOARD)
+  {
+    sendBoard();
   }
   else if (command == COMMAND_FOCUSER_ISMOVING) 
   {
@@ -1161,9 +1178,15 @@ void handlePing()
     Serial.println(DEVICE_GUID);
 }
 
-void sendFirmwareInfo() 
+void sendFirmwareInfo()
 {
     Serial.println(RESULT_INFO);
+}
+
+void sendBoard()
+{
+    Serial.print(RESULT_FOCUSER_BOARD);
+    Serial.println(BOARD_ID);
 }
 
 void handleInvalidCommand()

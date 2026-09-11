@@ -12,7 +12,7 @@
       2. Patch firmware __FIRMWARE_VERSION__ placeholder
       3. Build ASCOM_Driver  (Release | Any CPU)
       4. Build AppV2          (Release | x64)
-      5. Compile ESP32-C3 firmware via arduino-cli  -> Installer\*.bin
+      5. Compile firmware via arduino-cli, one .bin per board  -> Installer\*.bin
       6. Compile AppV2/Installer/Setup.iss with ISCC, injecting /DMyAppVersion
       7. Prune Installer/ to keep only the new -exe and -bin
 #>
@@ -45,7 +45,16 @@ $Iss          = Join-Path $RepoRoot 'Code\FocuserApp\Installer\Setup.iss'
 $FirmwareDir  = Join-Path $RepoRoot 'Code\Arduino_Firmware'
 $FirmwareIno  = Join-Path $FirmwareDir 'Arduino_Firmware.ino'
 $FirmwareBuildDir = Join-Path $RepoRoot 'build\firmware'
-$FirmwareFqbn = 'esp32:esp32:XIAO_ESP32C3'
+
+# One .bin per board revision. Id must match BOARD_ID in the .ino -- the hub
+# compares the two to catch a wrong pick in its MCU dropdown before flashing.
+# Order matters: hubs at or below 2.3.1 take the *first* firmware asset in the
+# release, so the pre-rev build (what every existing unit runs) goes first.
+$FirmwareVariants = @(
+    @{ Id = 'esp32c3-old'; Define = 'ESP32C3_OLD'; Fqbn = 'esp32:esp32:XIAO_ESP32C3' },
+    @{ Id = 'esp32c3';     Define = 'ESP32C3';     Fqbn = 'esp32:esp32:XIAO_ESP32C3' },
+    @{ Id = 'esp32s3';     Define = 'ESP32S3';     Fqbn = 'esp32:esp32:XIAO_ESP32S3' }
+)
 
 $OutputPath = if ([System.IO.Path]::IsPathRooted($OutputDir)) { $OutputDir } else { Join-Path $RepoRoot $OutputDir }
 
@@ -203,35 +212,69 @@ if (-not (Test-Path -LiteralPath $OutputPath)) {
     New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
 }
 
-# 4. Compile ESP32-C3 firmware
-$FirmwareBinName = "DeFocuser-Lite-Firmware-$InnoVersion-esp32c3.bin"
-$FirmwareBinDest = Join-Path $OutputPath $FirmwareBinName
+# 4. Compile firmware, one .bin per board revision
+$FirmwareBinNames = $FirmwareVariants | ForEach-Object { "DeFocuser-Lite-Firmware-$InnoVersion-$($_.Id).bin" }
 
 if ($SkipBuild) {
     Write-Host "[3/5] Skipping firmware compile (-SkipBuild)"
 } else {
-    Write-Host "[3/5] Compiling firmware ($FirmwareFqbn)"
+    Write-Host "[3/5] Compiling firmware ($($FirmwareVariants.Count) variants)"
     if (Test-Path -LiteralPath $FirmwareBuildDir) {
         Remove-Item -LiteralPath $FirmwareBuildDir -Recurse -Force
     }
-    New-Item -ItemType Directory -Path $FirmwareBuildDir -Force | Out-Null
 
     & $script:ArduinoCli core install esp32:esp32 2>&1 | Out-Host
-    & $script:ArduinoCli compile --fqbn $FirmwareFqbn --output-dir $FirmwareBuildDir $FirmwareDir 2>&1 | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "arduino-cli compile failed (exit $LASTEXITCODE)" }
 
-    $mergedBin = Get-ChildItem -LiteralPath $FirmwareBuildDir -Filter '*.merged.bin' -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (-not $mergedBin) {
-        # Fallback to the legacy single-app .bin (older arduino-esp32 cores)
-        $mergedBin = Get-ChildItem -LiteralPath $FirmwareBuildDir -Filter '*.ino.bin' -ErrorAction SilentlyContinue | Select-Object -First 1
+    foreach ($variant in $FirmwareVariants) {
+        $variantDir = Join-Path $FirmwareBuildDir $variant.Id
+        New-Item -ItemType Directory -Path $variantDir -Force | Out-Null
+
+        # -DMCU= selects the pinout at compile time, so a release build never
+        # edits the .ino. The #ifndef guard in the sketch keeps a bare
+        # `arduino-cli compile` working for local dev.
+        Write-Host "  compiling $($variant.Id) [$($variant.Define) | $($variant.Fqbn)]"
+        & $script:ArduinoCli compile `
+            --fqbn $variant.Fqbn `
+            --build-property "compiler.cpp.extra_flags=-DMCU=$($variant.Define)" `
+            --output-dir $variantDir $FirmwareDir 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "arduino-cli compile failed for $($variant.Id) (exit $LASTEXITCODE)" }
+
+        $mergedBin = Get-ChildItem -LiteralPath $variantDir -Filter '*.merged.bin' -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $mergedBin) {
+            # Fallback to the legacy single-app .bin (older arduino-esp32 cores)
+            $mergedBin = Get-ChildItem -LiteralPath $variantDir -Filter '*.ino.bin' -ErrorAction SilentlyContinue | Select-Object -First 1
+        }
+        if (-not $mergedBin) { throw "Firmware .bin not found in $variantDir" }
+
+        $dest = Join-Path $OutputPath "DeFocuser-Lite-Firmware-$InnoVersion-$($variant.Id).bin"
+        Copy-Item -LiteralPath $mergedBin.FullName -Destination $dest -Force
+
+        # The .ino bakes BOARD_ID into the image; if it doesn't match the name
+        # we're about to ship, the -D override silently didn't apply.
+        $bytes = [System.IO.File]::ReadAllBytes($dest)
+        $text  = [System.Text.Encoding]::ASCII.GetString($bytes)
+        if ($text -notmatch [regex]::Escape("RESULT:FOCUSER:BOARD:")) {
+            throw "$($variant.Id): firmware image has no BOARD_ID marker"
+        }
+        if ($text -notmatch [regex]::Escape($variant.Id)) {
+            throw "$($variant.Id): BOARD_ID missing from image -- -DMCU override did not apply"
+        }
+        # "esp32c3" is a substring of "esp32c3-old", so presence alone can't tell
+        # those two apart. Any *other* id that isn't a substring of this one must
+        # be absent, which pins the image to exactly one variant.
+        foreach ($other in $FirmwareVariants) {
+            if ($other.Id -eq $variant.Id) { continue }
+            if ($variant.Id.Contains($other.Id)) { continue }
+            if ($text -match [regex]::Escape($other.Id)) {
+                throw "$($variant.Id): image also carries BOARD_ID '$($other.Id)' -- wrong variant compiled"
+            }
+        }
+
+        Write-Host "  firmware -> $dest"
     }
-    if (-not $mergedBin) { throw "Firmware .bin not found in $FirmwareBuildDir" }
-
-    Copy-Item -LiteralPath $mergedBin.FullName -Destination $FirmwareBinDest -Force
-    Write-Host "  firmware -> $FirmwareBinDest"
 
     # Clean both build caches (central output-dir and the cache arduino-cli
-    # drops next to the .ino) now that the artifact is safely in Installer/.
+    # drops next to the .ino) now that the artifacts are safely in Installer/.
     foreach ($dir in @($FirmwareBuildDir, (Join-Path $FirmwareDir 'build'))) {
         if (Test-Path -LiteralPath $dir) {
             Remove-Item -LiteralPath $dir -Recurse -Force
@@ -255,7 +298,7 @@ if ($LASTEXITCODE -ne 0) { throw "ISCC failed (exit $LASTEXITCODE)" }
 # 6. Prune older artifacts so Installer/ only carries the current release pair
 Write-Host "[5/5] Pruning old artifacts"
 $keepInstaller = "DeKoi DeFocuser Lite Setup-$InnoVersion.exe"
-$keepFirmware  = $FirmwareBinName
+$keepFirmware  = $FirmwareBinNames
 
 Get-ChildItem -LiteralPath $OutputPath -Filter '*.exe' |
     Where-Object { $_.Name -like 'DeKoi DeFocuser Lite Setup-*' -and $_.Name -ne $keepInstaller } |
@@ -265,7 +308,7 @@ Get-ChildItem -LiteralPath $OutputPath -Filter '*.exe' |
     }
 
 Get-ChildItem -LiteralPath $OutputPath -Filter '*.bin' |
-    Where-Object { $_.Name -like 'DeFocuser-Lite-Firmware-*' -and $_.Name -ne $keepFirmware } |
+    Where-Object { $_.Name -like 'DeFocuser-Lite-Firmware-*' -and $keepFirmware -notcontains $_.Name } |
     ForEach-Object {
         Write-Host "  pruned $($_.Name)"
         Remove-Item -LiteralPath $_.FullName -Force
@@ -274,7 +317,7 @@ Get-ChildItem -LiteralPath $OutputPath -Filter '*.bin' |
 Write-Host ""
 Write-Host "Output:"
 Get-ChildItem -LiteralPath $OutputPath |
-    Where-Object { $_.Name -eq $keepInstaller -or $_.Name -eq $keepFirmware } |
+    Where-Object { $_.Name -eq $keepInstaller -or $keepFirmware -contains $_.Name } |
     ForEach-Object { Write-Host "  -> $($_.FullName)" }
 
 Write-Host ""

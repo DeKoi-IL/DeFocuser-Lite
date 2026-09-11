@@ -69,6 +69,8 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                     OnPropertyChanged(nameof(ConnectionStatusText));
                     OnPropertyChanged(nameof(ConnectionStatusKind));
                     OnPropertyChanged(nameof(IsDisconnected));
+                    OnPropertyChanged(nameof(DeviceBoardDisplay));
+                    OnPropertyChanged(nameof(BoardMismatch));
                     System.Windows.Input.CommandManager.InvalidateRequerySuggested();
                 }
             }
@@ -567,6 +569,63 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             }
         }
 
+        // ---- Board / MCU selection ----
+        public System.Collections.Generic.IReadOnlyList<FirmwareBoard> BoardOptions => FirmwareBoards.All;
+
+        private FirmwareBoard selectedBoard = FirmwareBoards.Default;
+        public FirmwareBoard SelectedBoard
+        {
+            get => selectedBoard;
+            set
+            {
+                if (value == null) return;
+                if (SetField(ref selectedBoard, value))
+                {
+                    PersistSetting(() => Settings.Default.FirmwareBoard = value.Id);
+                    OnPropertyChanged(nameof(BoardMismatch));
+                    OnPropertyChanged(nameof(DeviceBoardDisplay));
+                }
+            }
+        }
+
+        // Board id the connected firmware reports. Null when disconnected or
+        // when the device predates COMMAND:FOCUSER:GETBOARD (< 2.4.0).
+        private string deviceBoardId;
+        public string DeviceBoardId
+        {
+            get => deviceBoardId;
+            private set
+            {
+                if (SetField(ref deviceBoardId, value))
+                {
+                    OnPropertyChanged(nameof(BoardMismatch));
+                    OnPropertyChanged(nameof(DeviceBoardDisplay));
+                }
+            }
+        }
+
+        public string DeviceBoardDisplay
+        {
+            get
+            {
+                if (!isConnected) return "not connected";
+                if (string.IsNullOrEmpty(deviceBoardId)) return "unknown (firmware predates board reporting)";
+                var known = FirmwareBoards.Find(deviceBoardId);
+                return known != null ? known.DisplayName : deviceBoardId;
+            }
+        }
+
+        /// <summary>
+        /// True when the device reports a different board than the one selected.
+        /// Flashing on a mismatch is what killed movement in 2.3.0, so the UI
+        /// warns and the flash command refuses until it's resolved.
+        /// </summary>
+        public bool BoardMismatch =>
+            isConnected
+            && !string.IsNullOrEmpty(deviceBoardId)
+            && selectedBoard != null
+            && !string.Equals(deviceBoardId, selectedBoard.Id, StringComparison.OrdinalIgnoreCase);
+
         private string firmwareVersionText;
         public string FirmwareVersionText
         {
@@ -705,6 +764,7 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
 
             backlashCompensation = Settings.Default.BacklashCompensation;
             stepMultiplier = Math.Max(StepMultiplierMin, Settings.Default.StepMultiplier);
+            selectedBoard = FirmwareBoards.FindOrDefault(Settings.Default.FirmwareBoard);
             autoConnectOnOpen = Settings.Default.AutoConnectOnStartup;
             connectionExpanded = Settings.Default.ConnectionExpanded;
             settingsExpanded = Settings.Default.SettingsExpanded;
@@ -866,11 +926,24 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                 int? sGrace = await Task.Run(() => SafeGetStallGrace());
                 bool? sEn = await Task.Run(() => SafeGetStallEnabled());
                 string info = await Task.Run(() => SafeGetFirmwareInfo());
+                string board = await Task.Run(() => SafeGetBoard());
 
                 if (!string.IsNullOrEmpty(info))
                 {
                     FirmwareVersionText = info;
                     FirmwareVersion = ParseFirmwareVersion(info);
+                }
+
+                DeviceBoardId = board;
+
+                // The device is the authority on its own pinout, so a reported
+                // board wins over the stored selection. Flashing the wrong
+                // variant is what bricked movement in 2.3.0.
+                var reported = FirmwareBoards.Find(board);
+                if (reported != null && reported != selectedBoard)
+                {
+                    SelectedBoard = reported;
+                    Log(LogKind.Info, "Board detected: " + reported.DisplayName);
                 }
 
                 SetPositionFromDevice(p);
@@ -974,6 +1047,13 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         private string SafeGetFirmwareInfo()
         {
             try { return serial.GetFirmwareInfo(); }
+            catch { return null; }
+        }
+
+        // Null on firmware older than 2.4.0, which rejects the command.
+        private string SafeGetBoard()
+        {
+            try { return serial.GetBoard(); }
             catch { return null; }
         }
 
@@ -1402,8 +1482,9 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                     await Task.Delay(500, ct);
                 }
 
-                Log(LogKind.Info, "Flashing " + port + " via esptool...");
-                bool ok = await FirmwareFlasher.FlashAsync(esptool, port, binPath,
+                var board = selectedBoard ?? FirmwareBoards.Default;
+                Log(LogKind.Info, "Flashing " + port + " via esptool (" + board.Id + ", chip " + board.EsptoolChip + ")...");
+                bool ok = await FirmwareFlasher.FlashAsync(esptool, port, binPath, board.EsptoolChip,
                     line => Log(line.IsError ? LogKind.Warn : LogKind.Recv, "esptool: " + line.Line),
                     ct);
 

@@ -121,6 +121,42 @@
                         Visibility="{Binding FirmwareUpdateAvailable, Converter={StaticResource BoolToVis}}" />
               </Grid>
 
+              <!-- Board / MCU. Picks which firmware variant gets downloaded
+                   and which esptool chip argument is used. -->
+              <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="100" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Board" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1"
+                          ItemsSource="{Binding BoardOptions}"
+                          SelectedItem="{Binding SelectedBoard, Mode=TwoWay}"
+                          ToolTip="Which MCU/board revision this focuser uses. Firmware is published per board." />
+              </Grid>
+
+              <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="100" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" />
+                <WrapPanel Grid.Column="1">
+                  <TextBlock Text="Device reports " Foreground="{StaticResource Text3Brush}" FontSize="11.5" />
+                  <TextBlock Text="{Binding DeviceBoardDisplay}" Foreground="{StaticResource Text2Brush}"
+                             FontFamily="{StaticResource MonoFont}" FontSize="11.5" />
+                </WrapPanel>
+              </Grid>
+
+              <!-- Mismatch is exactly the 2.3.0 failure: right firmware version,
+                   wrong pinout. Block the flash until the selection is fixed. -->
+              <Border Background="#33FFB020" BorderBrush="{StaticResource WarnBrush}"
+                      BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,10"
+                      Visibility="{Binding BoardMismatch, Converter={StaticResource BoolToVis}}">
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextBrush}" FontSize="11.5"
+                           Text="The connected device reports a different board than the one selected. Flashing is disabled — pick the board the device reports, or reconnect the focuser you meant to update." />
+              </Border>
+
               <Border Height="1" Background="{StaticResource LineBrush}" Margin="-14,4,-14,12" />
 
               <Grid>

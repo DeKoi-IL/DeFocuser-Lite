@@ -81,6 +81,14 @@ namespace ASCOM.DeKoi.DeFocuserApp.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("esp32c3-old")]
+        public string FirmwareBoard {
+            get { return ((string)(this["FirmwareBoard"])); }
+            set { this["FirmwareBoard"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("1180")]
         public double WindowWidth {
             get { return ((double)(this["WindowWidth"])); }

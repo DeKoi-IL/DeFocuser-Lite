@@ -29,7 +29,8 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
                 _ => !isChecking && mainVm.UpdateInfo != null && mainVm.UpdateInfo.HubAvailable);
             FlashFirmwareCommand = new RelayCommand(_ => _ = FlashAsync(),
                 _ => !isChecking && !mainVm.IsFlashingFirmware
-                     && mainVm.FirmwareUpdateAvailable && mainVm.IsConnected);
+                     && mainVm.FirmwareUpdateAvailable && mainVm.IsConnected
+                     && !mainVm.BoardMismatch);
             ResetStallDefaultsCommand = new RelayCommand(_ => mainVm.ResetStallSettingsToDefaults(),
                 _ => mainVm.IsConnected);
 
@@ -40,11 +41,23 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
 
             mainVm.PropertyChanged += (s, e) =>
             {
+                switch (e.PropertyName)
+                {
+                    case nameof(MainViewModel.SelectedBoard):      OnPropertyChanged(nameof(SelectedBoard));      break;
+                    case nameof(MainViewModel.DeviceBoardDisplay): OnPropertyChanged(nameof(DeviceBoardDisplay)); break;
+                    case nameof(MainViewModel.BoardMismatch):
+                        OnPropertyChanged(nameof(BoardMismatch));
+                        CommandManager.InvalidateRequerySuggested();
+                        break;
+                }
+
                 if (e.PropertyName == nameof(MainViewModel.UpdateInfo)
                     || e.PropertyName == nameof(MainViewModel.FirmwareUpdateAvailable)
                     || e.PropertyName == nameof(MainViewModel.IsFlashingFirmware)
                     || e.PropertyName == nameof(MainViewModel.IsConnected))
                 {
+                    OnPropertyChanged(nameof(DeviceBoardDisplay));
+                    OnPropertyChanged(nameof(BoardMismatch));
                     OnPropertyChanged(nameof(HubUpdateAvailable));
                     OnPropertyChanged(nameof(FirmwareUpdateAvailable));
                     OnPropertyChanged(nameof(HubVersionDisplay));
@@ -72,6 +85,17 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         public RelayCommand ResetStallDefaultsCommand { get; }
 
         public bool IsConnected => mainVm.IsConnected;
+
+        public System.Collections.Generic.IReadOnlyList<FirmwareBoard> BoardOptions => mainVm.BoardOptions;
+
+        public FirmwareBoard SelectedBoard
+        {
+            get => mainVm.SelectedBoard;
+            set => mainVm.SelectedBoard = value;
+        }
+
+        public string DeviceBoardDisplay => mainVm.DeviceBoardDisplay;
+        public bool BoardMismatch => mainVm.BoardMismatch;
 
         public int StallThresholdMin => mainVm.StallThresholdMin;
         public int StallThresholdMax => mainVm.StallThresholdMax;
@@ -216,10 +240,23 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
         private async Task FlashAsync()
         {
             var info = mainVm.UpdateInfo;
-            if (info == null || info.FirmwareBinUrl == null) return;
+            if (info == null) return;
+
+            var board = mainVm.SelectedBoard ?? FirmwareBoards.Default;
+            string url = info.FirmwareUrlFor(board.Id);
+            if (url == null) return;
+
+            // A release that predates per-board assets only carries one .bin,
+            // and we can't tell which pinout it holds. Say so rather than
+            // flashing something that might not match the hardware.
+            string caveat = info.HasBoardSpecificFirmware
+                ? "Board: " + board.DisplayName + "."
+                : "This release predates per-board firmware, so only one binary is published "
+                  + "and it may not match " + board.DisplayName + ".";
 
             var r = MessageBox.Show(
-                "Flash firmware v" + info.FirmwareVersion + " to the connected device? The serial connection will be temporarily released.",
+                "Flash firmware v" + info.FirmwareVersion + " to the connected device?\n\n"
+                + caveat + "\n\nThe serial connection will be temporarily released.",
                 "Firmware update", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (r != MessageBoxResult.Yes) return;
 
@@ -227,7 +264,7 @@ namespace ASCOM.DeKoi.DeFocuserApp.ViewModels
             Status = "Flashing firmware...";
             try
             {
-                bool ok = await mainVm.FlashFirmwareAsync(info.FirmwareBinUrl, info.FirmwareVersion, CancellationToken.None);
+                bool ok = await mainVm.FlashFirmwareAsync(url, info.FirmwareVersion, CancellationToken.None);
                 Status = ok ? "Firmware updated" : "Firmware flash failed";
             }
             finally
